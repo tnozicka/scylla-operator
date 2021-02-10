@@ -175,18 +175,16 @@ help:
 	awk '/^[^.%][-A-Za-z0-9_]*:/	{ print substr($$1, 1, length($$1)-1) }' | sort -u
 .PHONY: help
 
-# Run against the configured Kubernetes cluster in ~/.kube/config
-run: generate verify-govet manifests
-	go run ./cmd operator --image="$(IMAGE_REF)" --enable-admission-webhook=false
-
 # Install CRDs into a cluster
 install: manifests cert-manager
 	kustomize build config/operator/crd | kubectl apply -f -
+.PHONY: install
 
 # Uninstall CRDs from a cluster
 uninstall: manifests
 	kustomize build config/operator/crd | kubectl delete -f -
 	kubectl delete -f examples/common/cert-manager.yaml
+.PHONY: uninstall
 
 cert-manager:
 	cat config/operator/certmanager/cert-manager.yaml > examples/common/cert-manager.yaml
@@ -194,33 +192,41 @@ cert-manager:
 	kubectl -n cert-manager wait --for=condition=ready pod -l app=cert-manager --timeout=60s
 	kubectl -n cert-manager wait --for=condition=ready pod -l app=cainjector --timeout=60s
 	kubectl -n cert-manager wait --for=condition=ready pod -l app=webhook --timeout=60s
+.PHONY: cert-manager
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy: manifests cert-manager
 	kubectl apply -f examples/common/operator.yaml
+.PHONY: deploy
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests:
 	cd config/operator/operator && kustomize edit set image controller=$(IMAGE_REF)
 	cd config/manager/manager && kustomize edit set image operator=$(IMAGE_REF)
 
-	controller-gen $(CRD_OPTIONS) paths="$(PKG)" output:crd:dir=config/operator/crd/bases \
+	controller-gen $(CRD_OPTIONS) paths="$(GO_PACKAGES)" output:crd:dir=config/operator/crd/bases \
 	rbac:roleName=manager-role output:rbac:artifacts:config=config/operator/rbac \
 	webhook output:webhook:artifacts:config=config/operator/webhook
 
 	controller-gen $(CRD_OPTIONS) paths="./pkg/controllers/manager" rbac:roleName=manager-role output:rbac:artifacts:config=config/manager/rbac
 	kustomize build config/operator/default > examples/common/operator.yaml
 	kustomize build config/manager/default > examples/common/manager.yaml
+.PHONY: manifests
+
+latest:
+	docker build . -t $(IMAGE_REF)
+.PHONY: latest
 
 # Generate code
 generate:
-	controller-gen object:headerFile="hack/boilerplate.go.txt" paths="$(PKG)"
+	controller-gen object:headerFile="hack/boilerplate.go.txt" paths="$(GO_PACKAGES)"
+.PHONY: generate
 
 # Build Helm charts and publish them in GCS repo
-.PHONY: helm-release
 helm-release:
 	mkdir -p $(HELM_LOCAL_REPO)
 	gsutil rsync -d $(HELM_BUCKET) $(HELM_LOCAL_REPO)
 	helm package helm/scylla-operator helm/scylla helm/scylla-manager -d $(HELM_LOCAL_REPO)
 	helm repo index $(HELM_LOCAL_REPO) --url $(HELM_REPOSITORY) --merge $(HELM_LOCAL_REPO)/index.yaml
 	gsutil rsync -d $(HELM_LOCAL_REPO) $(HELM_BUCKET)
+.PHONY: helm-release

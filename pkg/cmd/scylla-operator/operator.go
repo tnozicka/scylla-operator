@@ -29,7 +29,7 @@ func newOperatorCmd(ctx context.Context, logger log.Logger, level zap.AtomicLeve
 				logger.Fatal(ctx, "invalid options", "error", err)
 			}
 			v := version.Get()
-			logger.Info(ctx, "Operator started", "version", "version", v.GitVersion, "build_date", v.BuildDate,
+			logger.Info(ctx, "Operator started", "version", v.GitVersion, "build_date", v.BuildDate,
 				"commit", v.GitCommit, "go_version", v.GoVersion, "options", opts)
 
 			// Set log level

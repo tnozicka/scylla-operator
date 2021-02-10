@@ -15,6 +15,9 @@ COPY . .
 RUN make build --warn-undefined-variables
 
 FROM docker.io/library/ubuntu:20.04
-SHELL ["/bin/bash", "-euEo pipefail", "-c"]
-COPY --from=builder /go/src/github.com/scylladb/scylla-operator/scylla-operator /usr/bin/
+SHELL ["/bin/bash", "-euEo", "pipefail", "-c"]
+# sidecar-injection container and existing installations use binary from root,
+# we have to keep it there until we figure out how to properly upgrade them.
+COPY --from=builder /go/src/github.com/scylladb/scylla-operator/scylla-operator /
+RUN ln -s /scylla-operator /usr/bin/scylla-operator
 ENTRYPOINT ["/usr/bin/scylla-operator"]

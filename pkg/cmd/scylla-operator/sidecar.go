@@ -25,7 +25,7 @@ func newSidecarCmd(ctx context.Context, logger log.Logger, level zap.AtomicLevel
 				logger.Fatal(ctx, "sidecar options", "error", err)
 			}
 			v := version.Get()
-			logger.Info(ctx, "sidecar started", "version", "version", v.GitVersion, "build_date", v.BuildDate,
+			logger.Info(ctx, "sidecar started", "version", v.GitVersion, "build_date", v.BuildDate,
 				"commit", v.GitCommit, "go_version", v.GoVersion, "options", opts)
 
 			// Set log level
