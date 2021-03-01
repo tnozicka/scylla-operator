@@ -40,7 +40,7 @@ jobs:
       with:
         go-version: ${{ env.go_version }}
     - uses: actions/checkout@v2
-    - name: Verify
+    - name: Verifyxxx
       run: make verify --warn-undefined-variables
 
   verify-deps:
