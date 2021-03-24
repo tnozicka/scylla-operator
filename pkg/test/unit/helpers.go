@@ -24,7 +24,7 @@ func NewDetailedSingleRackCluster(name, namespace, repo, version, dc, rack strin
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: scyllav1.ClusterSpec{
+		Spec: scyllav1.ScyllaClusterSpec{
 			Repository: repo,
 			Version:    version,
 			Datacenter: scyllav1.DatacenterSpec{
@@ -40,7 +40,7 @@ func NewDetailedSingleRackCluster(name, namespace, repo, version, dc, rack strin
 				},
 			},
 		},
-		Status: scyllav1.ClusterStatus{
+		Status: scyllav1.ScyllaClusterStatus{
 			Racks: map[string]scyllav1.RackStatus{
 				rack: {
 					Version:      version,
@@ -59,7 +59,7 @@ func NewDetailedMultiRackCluster(name, namespace, repo, version, dc string, memb
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: scyllav1.ClusterSpec{
+		Spec: scyllav1.ScyllaClusterSpec{
 			Repository: repo,
 			Version:    version,
 			Datacenter: scyllav1.DatacenterSpec{
@@ -67,7 +67,7 @@ func NewDetailedMultiRackCluster(name, namespace, repo, version, dc string, memb
 				Racks: []scyllav1.RackSpec{},
 			},
 		},
-		Status: scyllav1.ClusterStatus{
+		Status: scyllav1.ScyllaClusterStatus{
 			Racks: map[string]scyllav1.RackStatus{},
 		},
 	}

@@ -13,7 +13,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/scylladb/go-log"
-	"github.com/scylladb/scylla-operator/pkg/controllers/cluster/actions"
+	"github.com/scylladb/scylla-operator/pkg/controller/cluster/actions"
 	"github.com/scylladb/scylla-operator/pkg/naming"
 	"github.com/scylladb/scylla-operator/pkg/scyllaclient"
 	testutils "github.com/scylladb/scylla-operator/pkg/test/utils"

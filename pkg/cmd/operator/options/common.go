@@ -5,22 +5,24 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
+	"github.com/scylladb/scylla-operator/pkg/genericclioptions"
 	"github.com/scylladb/scylla-operator/pkg/naming"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 
-// Singleton
-var commonOpts = &CommonOptions{}
-
 type CommonOptions struct {
 	Name      string
 	Namespace string
-	LogLevel  string
 }
 
-func GetCommonOptions() *CommonOptions {
-	return commonOpts
+func NewCommonOptions(stream genericclioptions.IOStreams) *CommonOptions {
+	return &CommonOptions{
+		Name:
+	}
+	Name      string
+	Namespace string
+	LogLevel  string
 }
 
 func (o *CommonOptions) AddFlags(cmd *cobra.Command) {

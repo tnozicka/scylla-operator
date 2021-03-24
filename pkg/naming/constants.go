@@ -12,12 +12,12 @@ const (
 	// SeedLabel determines if a member is a seed or not.
 	SeedLabel = "scylla/seed"
 
-	// DecommissionLabel expresses the intent to decommission
+	// DecommissionedLabel expresses the intent to decommission
 	// the specific member. The presence of the label expresses
 	// the intent to decommission. If the value is true, it means
 	// the member has finished decommissioning.
 	// Values: {true, false}
-	DecommissionLabel = "scylla/decommissioned"
+	DecommissionedLabel = "scylla/decommissioned"
 
 	// ReplaceLabel express the intent to replace pod under the specific member.
 	ReplaceLabel = "scylla/replace"
@@ -35,6 +35,7 @@ const (
 	ClusterNameLabel    = "scylla/cluster"
 	DatacenterNameLabel = "scylla/datacenter"
 	RackNameLabel       = "scylla/rack"
+	ManagedHash         = "scylla-operator.scylladb.com/managed-hash"
 
 	AppName         = "scylla"
 	OperatorAppName = "scylla-operator"

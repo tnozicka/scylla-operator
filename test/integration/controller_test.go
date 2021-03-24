@@ -291,7 +291,7 @@ func singleNodeCluster(ns *corev1.Namespace) *scyllav1.ScyllaCluster {
 			GenerateName: "test-",
 			Namespace:    ns.Name,
 		},
-		Spec: scyllav1.ClusterSpec{
+		Spec: scyllav1.ScyllaClusterSpec{
 			Version:       "4.2.0",
 			AgentVersion:  "2.2.0",
 			DeveloperMode: true,

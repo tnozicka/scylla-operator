@@ -24,8 +24,8 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// ClusterSpec defines the desired state of Cluster
-type ClusterSpec struct {
+// ScyllaClusterSpec defines the desired state of Cluster
+type ScyllaClusterSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	//TODO: add validation tags
@@ -300,8 +300,8 @@ type BackupTaskStatus struct {
 	Error          string `json:"error"`
 }
 
-// ClusterStatus defines the observed state of ScyllaCluster
-type ClusterStatus struct {
+// ScyllaClusterStatus defines the observed state of ScyllaCluster
+type ScyllaClusterStatus struct {
 	// Racks reflect status of cluster racks.
 	Racks map[string]RackStatus `json:"racks,omitempty"`
 	// ManagerID contains ID under which cluster was registered in Scylla Manager.
@@ -371,8 +371,8 @@ type ScyllaCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ClusterSpec   `json:"spec,omitempty"`
-	Status ClusterStatus `json:"status,omitempty"`
+	Spec   ScyllaClusterSpec   `json:"spec,omitempty"`
+	Status ScyllaClusterStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

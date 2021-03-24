@@ -23,7 +23,7 @@ func (t *TestEnvironment) SingleRackCluster(ns *corev1.Namespace) *scyllav1.Scyl
 			GenerateName: "test-",
 			Namespace:    ns.Name,
 		},
-		Spec: scyllav1.ClusterSpec{
+		Spec: scyllav1.ScyllaClusterSpec{
 			Version:       "4.2.0",
 			AgentVersion:  "2.2.0",
 			DeveloperMode: true,
@@ -73,7 +73,7 @@ func (t *TestEnvironment) MultiRackCluster(ns *corev1.Namespace, members ...int3
 			GenerateName: "test-",
 			Namespace:    ns.Name,
 		},
-		Spec: scyllav1.ClusterSpec{
+		Spec: scyllav1.ScyllaClusterSpec{
 			Version:       "4.2.0",
 			AgentVersion:  "2.2.0",
 			DeveloperMode: true,
