@@ -52,12 +52,23 @@ func MemberService(sc *scyllav1.ScyllaCluster, rackName, name string, oldService
 		labels[naming.SeedLabel] = ""
 	}
 
-	rackStatus, ok := sc.Status.Racks[rackName]
-	// Only new service should get the replace address, old service keep "" until deleted.
-	if ok && oldService == nil {
-		replaceAddr := rackStatus.ReplaceAddressFirstBoot[name]
-		if len(replaceAddr) != 0 {
-			labels[naming.ReplaceLabel] = replaceAddr
+	isInitialReplaceService := false
+	if oldService != nil && oldService.DeletionTimestamp == nil {
+		oldReplaceAddr, oldHasReplaceLabel := oldService.Labels[naming.ReplaceLabel]
+		if oldHasReplaceLabel && len(oldReplaceAddr) == 0 {
+			isInitialReplaceService = true
+		}
+	}
+	// Only new service should get the replace address, old service keeps "" until deleted.
+	if isInitialReplaceService {
+		labels[naming.ReplaceLabel] = ""
+	} else {
+		rackStatus, ok := sc.Status.Racks[rackName]
+		if ok {
+			replaceAddr := rackStatus.ReplaceAddressFirstBoot[name]
+			if len(replaceAddr) != 0 {
+				labels[naming.ReplaceLabel] = replaceAddr
+			}
 		}
 	}
 

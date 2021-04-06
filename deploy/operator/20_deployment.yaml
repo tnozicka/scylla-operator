@@ -33,7 +33,7 @@ spec:
               fieldPath: metadata.namespace
         args:
         - operator
-        - --log-level=debug
+        - --loglevel=2
         livenessProbe:
           httpGet:
             path: /healthz

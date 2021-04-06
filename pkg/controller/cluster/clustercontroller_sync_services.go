@@ -113,7 +113,7 @@ func (scc *ScyllaClusterController) syncServices(
 		return status, fmt.Errorf("can't delete Service(s): %w", err)
 	}
 
-	// We need to first propagate ReplaceAddressFirstBoot from status for a new service.
+	// We need to first propagate ReplaceAddressFirstBoot from status for the new service.
 	for _, svc := range requiredServices {
 		_, _, err = resourceapply.ApplyService(ctx, scc.kubeClient.CoreV1(), scc.serviceLister, scc.eventRecorder, svc)
 		if err != nil {
