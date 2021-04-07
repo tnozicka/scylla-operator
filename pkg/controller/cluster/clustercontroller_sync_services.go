@@ -165,43 +165,66 @@ func (scc *ScyllaClusterController) syncServices(
 			// First, Delete the PVC if it exists.
 			// The PVC has finalizer protection so it will wait for the pod to be deleted.
 			// We can't do it the other way around or the pod could be recreated before we delete the PVC.
-			pvcName := naming.PVCNameForPod(svc.Name)
+			pvcMeta := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: svc.Namespace,
+					Name:      naming.PVCNameForPod(svc.Name),
+				},
+			}
 			klog.V(2).InfoS("Deleting the PVC to replace member",
 				"ScyllaCluster", klog.KObj(sc),
 				"Service", klog.KObj(svc),
-				"PVCName", pvcName,
+				"PVC", klog.KObj(pvcMeta),
 			)
-			err = scc.kubeClient.CoreV1().PersistentVolumeClaims(svc.Namespace).Delete(ctx, pvcName, metav1.DeleteOptions{
+			err = scc.kubeClient.CoreV1().PersistentVolumeClaims(pvcMeta.Namespace).Delete(ctx, pvcMeta.Name, metav1.DeleteOptions{
 				PropagationPolicy: &backgroundPropagationPolicy,
 			})
-			if err != nil && !apierrors.IsNotFound(err) {
-				return status, err
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					klog.V(4).InfoS("PVC not found", "PVC", klog.KObj(pvcMeta))
+				} else {
+					resourceapply.ReportDeleteEvent(scc.eventRecorder, pvcMeta, err)
+					return status, err
+				}
 			}
+			resourceapply.ReportDeleteEvent(scc.eventRecorder, pvcMeta, nil)
 
 			// Evict the Pod if it exists.
+			podMeta := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: svc.Namespace,
+					Name:      svc.Name,
+				},
+			}
 			klog.V(2).InfoS("Evicting the Pod to replace member",
 				"ScyllaCluster", klog.KObj(sc),
 				"Service", klog.KObj(svc),
-				"PodName", svc.Name,
+				"Pod", klog.KObj(podMeta),
 			)
-			err = scc.kubeClient.CoreV1().Pods(svc.Namespace).Evict(ctx, &policyv1beta1.Eviction{
+			err = scc.kubeClient.CoreV1().Pods(podMeta.Namespace).Evict(ctx, &policyv1beta1.Eviction{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: svc.Name,
+					Name: podMeta.Name,
 				},
 				DeleteOptions: &metav1.DeleteOptions{
 					PropagationPolicy: &backgroundPropagationPolicy,
 				},
 			})
-			if err != nil && !apierrors.IsNotFound(err) {
-				return status, err
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					klog.V(4).InfoS("Pod not found", "Pod", klog.ObjectRef{Namespace: svc.Namespace, Name: svc.Name})
+				} else {
+					resourceapply.ReportDeleteEvent(scc.eventRecorder, podMeta, err)
+					return status, err
+				}
 			}
+			resourceapply.ReportDeleteEvent(scc.eventRecorder, podMeta, nil)
 
 			// Delete the member Service.
 			klog.V(2).InfoS("Deleting the member service to replace member",
 				"ScyllaCluster", klog.KObj(sc),
 				"Service", klog.KObj(svc),
 			)
-			err = scc.kubeClient.CoreV1().Services(svc.Namespace).Delete(ctx, pvcName, metav1.DeleteOptions{
+			err = scc.kubeClient.CoreV1().Services(svc.Namespace).Delete(ctx, svc.Name, metav1.DeleteOptions{
 				PropagationPolicy: &backgroundPropagationPolicy,
 				Preconditions: &metav1.Preconditions{
 					UID: &svc.UID,
@@ -209,9 +232,16 @@ func (scc *ScyllaClusterController) syncServices(
 					ResourceVersion: &svc.ResourceVersion,
 				},
 			})
-			if err != nil && !apierrors.IsNotFound(err) {
-				return status, err
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					klog.V(4).InfoS("Pod not found", "Pod", klog.ObjectRef{Namespace: svc.Namespace, Name: svc.Name})
+				} else {
+					resourceapply.ReportDeleteEvent(scc.eventRecorder, svc, err)
+					return status, err
+				}
 			} else {
+				resourceapply.ReportDeleteEvent(scc.eventRecorder, svc, nil)
+
 				// FIXME: The pod could have been already up and read the old ClusterIP - make sure it will restart.
 				//        We can't delete the pod here as it wouldn't retry failures.
 
@@ -249,9 +279,11 @@ func (scc *ScyllaClusterController) syncServices(
 					return status, err
 				}
 				if podReady {
+					scc.eventRecorder.Eventf(svc, corev1.EventTypeNormal, "FinishedReplacingNode", "New pod %s/%s is ready.", pod.Namespace, pod.Name)
 					svcCopy := svc.DeepCopy()
 					delete(svcCopy.Labels, naming.ReplaceLabel)
 					_, err := scc.kubeClient.CoreV1().Services(svcCopy.Namespace).Update(ctx, svcCopy, metav1.UpdateOptions{})
+					resourceapply.ReportUpdateEvent(scc.eventRecorder, svc, err)
 					if err != nil {
 						return status, err
 					}

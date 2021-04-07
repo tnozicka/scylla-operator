@@ -19,6 +19,10 @@ func GetPodCondition(conditions []corev1.PodCondition, conditionType corev1.PodC
 }
 
 func IsPodReady(pod *corev1.Pod) bool {
+	if pod.DeletionTimestamp != nil {
+		return false
+	}
+
 	condition := GetPodCondition(pod.Status.Conditions, corev1.PodReady)
 	return condition != nil && condition.Status == corev1.ConditionTrue
 }

@@ -143,6 +143,74 @@ func TestMemberService(t *testing.T) {
 			},
 		},
 		{
+			name: "new service with saved IP and existing replace address",
+			scyllaCLuster: func() *scyllav1.ScyllaCluster {
+				sc := basicSC.DeepCopy()
+				sc.Status.Racks[basicRackName] = scyllav1.RackStatus{
+					ReplaceAddressFirstBoot: map[string]string{
+						basicSVCName: "10.0.0.1",
+					},
+				}
+				return sc
+			}(),
+			rackName: basicRackName,
+			svcName:  basicSVCName,
+			oldService: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						naming.ReplaceLabel: "10.0.0.1",
+					},
+				},
+			},
+			expectedService: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: basicSVCName,
+					Labels: func() map[string]string {
+						labels := basicSVCLabels()
+						labels[naming.ReplaceLabel] = "10.0.0.1"
+						return labels
+					}(),
+					OwnerReferences: basicSCOwnerRefs,
+				},
+				Spec: corev1.ServiceSpec{
+					Type:                     corev1.ServiceTypeClusterIP,
+					Selector:                 basicSVCSelector,
+					PublishNotReadyAddresses: true,
+					Ports:                    basicPorts,
+				},
+			},
+		},
+		{
+			name:          "new service with unsaved IP and existing replace address",
+			scyllaCLuster: basicSC,
+			rackName:      basicRackName,
+			svcName:       basicSVCName,
+			oldService: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						naming.ReplaceLabel: "10.0.0.1",
+					},
+				},
+			},
+			expectedService: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: basicSVCName,
+					Labels: func() map[string]string {
+						labels := basicSVCLabels()
+						labels[naming.ReplaceLabel] = "10.0.0.1"
+						return labels
+					}(),
+					OwnerReferences: basicSCOwnerRefs,
+				},
+				Spec: corev1.ServiceSpec{
+					Type:                     corev1.ServiceTypeClusterIP,
+					Selector:                 basicSVCSelector,
+					PublishNotReadyAddresses: true,
+					Ports:                    basicPorts,
+				},
+			},
+		},
+		{
 			name:          "existing initial service",
 			scyllaCLuster: basicSC,
 			rackName:      basicRackName,

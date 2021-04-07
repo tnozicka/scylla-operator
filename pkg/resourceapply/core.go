@@ -43,7 +43,7 @@ func ApplyService(
 		if apierrors.IsAlreadyExists(err) {
 			klog.V(2).InfoS("Already exists (stale cache)", "Service", klog.KObj(requiredCopy))
 		} else {
-			reportCreateEvent(recorder, requiredCopy, err)
+			ReportCreateEvent(recorder, requiredCopy, err)
 		}
 		return actual, true, err
 	}
@@ -73,7 +73,7 @@ func ApplyService(
 	if apierrors.IsConflict(err) {
 		klog.V(2).InfoS("Hit update conflict, will retry.", "Service", klog.KObj(requiredCopy))
 	} else {
-		reportUpdateEvent(recorder, requiredCopy, err)
+		ReportUpdateEvent(recorder, requiredCopy, err)
 	}
 	return actual, true, err
 }

@@ -17,6 +17,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsv1informers "k8s.io/client-go/informers/apps/v1"
@@ -138,6 +139,8 @@ func (scc *ScyllaClusterController) processNextItem(ctx context.Context) bool {
 	defer scc.queue.Done(key)
 
 	err := scc.sync(ctx, key.(string))
+	// TODO: Do smarter filtering then just Reduce to handle cases like 2 conflict errors.
+	err = utilerrors.Reduce(err)
 	switch {
 	case err == nil:
 		scc.queue.Forget(key)
@@ -257,6 +260,7 @@ func (scc *ScyllaClusterController) enqueue(sc *scyllav1.ScyllaCluster) {
 		return
 	}
 
+	klog.V(4).InfoS("Enqueuing", "ScyllaCluster", klog.KObj(sc))
 	scc.queue.Add(key)
 }
 
@@ -272,7 +276,7 @@ func (scc *ScyllaClusterController) enqueueOwner(obj metav1.Object) {
 		return
 	}
 
-	klog.V(4).InfoS(fmt.Sprintf("%s added", gvk.Kind), gvk.Kind, klog.KObj(obj))
+	klog.V(4).InfoS("Enqueuing owner", gvk.Kind, klog.KObj(obj), "ScyllaCluster", klog.KObj(sc))
 	scc.enqueue(sc)
 }
 

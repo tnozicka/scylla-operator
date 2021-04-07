@@ -20,17 +20,11 @@ spec:
       serviceAccountName: scylla-operator
       containers:
       - name: scylla-operator
-        image: docker.io/scylladb/scylla-operator:latest
+        image: &operator-image docker.io/scylladb/scylla-operator:latest
         imagePullPolicy: IfNotPresent
         env:
-        - name: POD_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        - name: POD_NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
+        - name: SCYLLA_OPERATOR_IMAGE
+          value: *operator-image
         args:
         - operator
         - --loglevel=2

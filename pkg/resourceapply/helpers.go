@@ -82,16 +82,20 @@ func reportEvent(recorder record.EventRecorder, obj runtime.Object, operationErr
 	recorder.Eventf(
 		obj,
 		corev1.EventTypeNormal,
-		fmt.Sprintf("%s%sd", strings.Title(verb), gvk.Kind),
-		"%sd %s",
-		strings.Title(verb), objectReference(objMeta),
+		fmt.Sprintf("%s%sd", gvk.Kind, strings.Title(verb)),
+		"%s %sd",
+		objectReference(objMeta), strings.Title(verb),
 	)
 }
 
-func reportCreateEvent(recorder record.EventRecorder, obj runtime.Object, operationErr error) {
+func ReportCreateEvent(recorder record.EventRecorder, obj runtime.Object, operationErr error) {
 	reportEvent(recorder, obj, operationErr, "create")
 }
 
-func reportUpdateEvent(recorder record.EventRecorder, obj runtime.Object, operationErr error) {
+func ReportUpdateEvent(recorder record.EventRecorder, obj runtime.Object, operationErr error) {
 	reportEvent(recorder, obj, operationErr, "update")
+}
+
+func ReportDeleteEvent(recorder record.EventRecorder, obj runtime.Object, operationErr error) {
+	reportEvent(recorder, obj, operationErr, "delete")
 }
