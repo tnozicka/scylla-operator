@@ -38,6 +38,8 @@ var (
 	KeyFunc                  = cache.DeletionHandlingMetaNamespaceKeyFunc
 	controllerGVK            = scyllav1.GroupVersion.WithKind("ScyllaCluster")
 	statefulSetControllerGVK = appsv1.SchemeGroupVersion.WithKind("StatefulSet")
+	// maxSyncDuration enforces preemption. Do not raise the value!
+	maxSyncDuration = 30 * time.Second
 )
 
 type ScyllaClusterController struct {
@@ -132,6 +134,9 @@ func NewScyllaClusterController(
 }
 
 func (scc *ScyllaClusterController) processNextItem(ctx context.Context) bool {
+	ctx, cancel := context.WithTimeout(ctx, maxSyncDuration)
+	defer cancel()
+
 	key, quit := scc.queue.Get()
 	if quit {
 		return false
