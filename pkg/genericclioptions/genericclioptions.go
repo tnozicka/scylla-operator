@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	goruntime "runtime"
 	"time"
 
+	"github.com/scylladb/scylla-operator/pkg/version"
 	"github.com/spf13/cobra"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -22,19 +24,29 @@ type IOStreams struct {
 }
 
 type ClientConfig struct {
-	Kubeconfig string
-	RestConfig *restclient.Config
+	Kubeconfig    string
+	QPS           float32
+	Burst         int
+	UserAgentName string
+	RestConfig    *restclient.Config
+	ProtoConfig   *restclient.Config
 }
 
-func NewClientConfig() ClientConfig {
+func NewClientConfig(userAgentName string) ClientConfig {
 	return ClientConfig{
-		Kubeconfig: "",
-		RestConfig: nil,
+		Kubeconfig:    "",
+		QPS:           50,
+		Burst:         75,
+		UserAgentName: userAgentName,
+		RestConfig:    nil,
+		ProtoConfig:   nil,
 	}
 }
 
 func (cc *ClientConfig) AddFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&cc.Kubeconfig, "kubeconfig", "", cc.Kubeconfig, "Path to the kubeconfig file")
+	cmd.PersistentFlags().Float32VarP(&cc.QPS, "qps", "", cc.QPS, "Maximum allowed number of queries per second")
+	cmd.PersistentFlags().IntVarP(&cc.Burst, "burst", "", cc.Burst, "Allows extra queries to accumulate when a client is exceeding its rate")
 }
 
 func (cc *ClientConfig) Validate() error {
@@ -54,6 +66,21 @@ func (cc *ClientConfig) Complete() error {
 	if err != nil {
 		return fmt.Errorf("can't create client config: %w", err)
 	}
+
+	cc.RestConfig.QPS = cc.QPS
+	cc.RestConfig.Burst = cc.Burst
+	cc.RestConfig.UserAgent = fmt.Sprintf(
+		"%s/%s (%s/%s) scylla-operator/%s",
+		cc.UserAgentName,
+		version.Get().GitVersion,
+		goruntime.GOOS,
+		goruntime.GOARCH,
+		version.Get().GitCommit,
+	)
+
+	cc.ProtoConfig = restclient.CopyConfig(cc.RestConfig)
+	cc.ProtoConfig.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
+	cc.ProtoConfig.ContentType = "application/vnd.kubernetes.protobuf"
 
 	return nil
 }

@@ -36,7 +36,7 @@ type OperatorOptions struct {
 
 func NewRunOperatorOptions(streams genericclioptions.IOStreams) *OperatorOptions {
 	return &OperatorOptions{
-		ClientConfig:        genericclioptions.NewClientConfig(),
+		ClientConfig:        genericclioptions.NewClientConfig("scylla-operator"),
 		InClusterReflection: genericclioptions.InClusterReflection{},
 		LeaderElection:      genericclioptions.NewLeaderElection(),
 
@@ -115,7 +115,7 @@ func (o *OperatorOptions) Complete() error {
 		return err
 	}
 
-	o.kubeClient, err = kubernetes.NewForConfig(o.RestConfig)
+	o.kubeClient, err = kubernetes.NewForConfig(o.ProtoConfig)
 	if err != nil {
 		return fmt.Errorf("can't build kubernetes clientset: %w", err)
 	}
