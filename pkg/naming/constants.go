@@ -35,6 +35,7 @@ const (
 	ClusterNameLabel    = "scylla/cluster"
 	DatacenterNameLabel = "scylla/datacenter"
 	RackNameLabel       = "scylla/rack"
+	ScyllaVersionLabel  = "scylla/scylla-version"
 	ManagedHash         = "scylla-operator.scylladb.com/managed-hash"
 
 	AppName         = "scylla"

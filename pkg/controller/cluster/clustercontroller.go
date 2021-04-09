@@ -38,7 +38,8 @@ var (
 	KeyFunc                  = cache.DeletionHandlingMetaNamespaceKeyFunc
 	controllerGVK            = scyllav1.GroupVersion.WithKind("ScyllaCluster")
 	statefulSetControllerGVK = appsv1.SchemeGroupVersion.WithKind("StatefulSet")
-	// maxSyncDuration enforces preemption. Do not raise the value!
+	// maxSyncDuration enforces preemption. Do not raise the value! Controllers shouldn't actively wait,
+	// but rather use the queue.
 	maxSyncDuration = 30 * time.Second
 )
 

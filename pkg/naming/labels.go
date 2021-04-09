@@ -32,6 +32,7 @@ func RackLabels(r scyllav1.RackSpec, c *scyllav1.ScyllaCluster) map[string]strin
 	recLabels := recommendedLabels()
 	rackLabels := DatacenterLabels(c)
 	rackLabels[RackNameLabel] = r.Name
+	rackLabels[ScyllaVersionLabel] = c.Spec.Version
 
 	return mergeLabels(rackLabels, recLabels)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/blang/semver"
 	scyllav1 "github.com/scylladb/scylla-operator/pkg/api/scylla/v1"
 	"github.com/scylladb/scylla-operator/pkg/controller/cluster/resource"
 	"github.com/scylladb/scylla-operator/pkg/controller/helpers"
@@ -15,7 +16,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 )
+
+func partitionValueOrDefault(sts *appsv1.StatefulSet) int32 {
+	if sts.Spec.UpdateStrategy.RollingUpdate == nil ||
+		sts.Spec.UpdateStrategy.RollingUpdate.Partition == nil {
+		return 0
+	}
+	return *sts.Spec.UpdateStrategy.RollingUpdate.Partition
+}
 
 func (scc *ScyllaClusterController) makeRacks(sc *scyllav1.ScyllaCluster) []*appsv1.StatefulSet {
 	sets := make([]*appsv1.StatefulSet, 0, len(sc.Spec.Datacenter.Racks))
@@ -107,6 +117,106 @@ func (scc *ScyllaClusterController) syncStatefulSets(
 		}
 	}
 
+	// Run hooks. Continue only if hooks have been reconciled.
+	// If the update/apply part detects an upgrade it sets partition to the number of replicas.
+	// Default partition value is 0 which mean no upgrade is in progress.
+	for _, sts := range statefulSets {
+		if sts.Spec.UpdateStrategy.Type != appsv1.RollingUpdateStatefulSetStrategyType {
+			return status, fmt.Errorf(
+				"owned statefulset %s/%s has update type %q instead of %q",
+				sts.Namespace, sts.Name, sts.Spec.UpdateStrategy.Type, appsv1.RollingUpdateStatefulSetStrategyType,
+			)
+		}
+
+		partition := partitionValueOrDefault(sts)
+		if partition <= 0 {
+			continue
+		}
+
+		// Isolate the live values in a block to prevent accidental use.
+		{
+			// We could still see an old StatefulSet revision. Although hooks are mandated to be reentrant,
+			// they are pretty expensive to run so it's cheaper to recheck the partition with a live call.
+			freshSts, err := scc.kubeClient.AppsV1().StatefulSets(sts.Namespace).Get(ctx, sts.Name, metav1.GetOptions{})
+			if err != nil {
+				return status, err
+			}
+
+			freshPartition := partitionValueOrDefault(freshSts)
+
+			if freshPartition != partition {
+				klog.V(2).InfoS("Stale partition value, waiting for requeue", "ScyllaCluster", sc)
+				return status, nil
+			}
+		}
+
+		if partition > *sts.Spec.Replicas {
+			partition = *sts.Spec.Replicas
+		}
+
+		podIndex := partition - 1
+		podName := fmt.Sprintf("%s-%d", sts.Name, podIndex)
+		isFirstNode := partition == *sts.Spec.Replicas
+
+		// Check schema only if it's the first pod being updated
+		if isFirstNode {
+			// TODO
+		}
+
+		// Make sure node is marked as under maintenance so liveness checks won't fail during drain.
+		svc, ok := services[podName]
+		if !ok {
+			return status, fmt.Errorf("service %s/%s doesn't exist", sc.Namespace, podName)
+		}
+
+		_, underMaintenance := svc.Labels[naming.NodeMaintenanceLabel]
+		if !underMaintenance {
+			// TODO: move service handling into syncServices and apply. This is edge triggered and
+			//  there is no reconciliation to take node out of maintenance if the flow changes.
+			svcCopy := svc.DeepCopy()
+			svcCopy.Labels[naming.NodeMaintenanceLabel] = ""
+			_, err := scc.kubeClient.CoreV1().Services(svc.Namespace).Update(ctx, svcCopy, metav1.UpdateOptions{})
+			if err != nil {
+				return status, err
+			}
+
+			// Wait for requeue.
+			return status, nil
+		}
+
+		// Drain the node.
+		// TODO
+
+		// FIXME(remove): Make sure it is fine to backup system tables and check schema here and not before
+		//  the upgrade starts, as it used to be done.
+
+		// Snapshot all tables, including system.
+		// TODO
+
+		// Take the node out of maintenance.
+		svcCopy := svc.DeepCopy()
+		delete(svcCopy.Labels, naming.NodeMaintenanceLabel)
+		_, err := scc.kubeClient.CoreV1().Services(svc.Namespace).Update(ctx, svcCopy, metav1.UpdateOptions{})
+		if err != nil {
+			return status, err
+		}
+
+		// Decrease the partition to move to the next node.
+		stsCopy := sts.DeepCopy()
+		stsCopy.Spec.UpdateStrategy.Type = appsv1.RollingUpdateStatefulSetStrategyType
+		if stsCopy.Spec.UpdateStrategy.RollingUpdate == nil {
+			stsCopy.Spec.UpdateStrategy.RollingUpdate = &appsv1.RollingUpdateStatefulSetStrategy{}
+		}
+		stsCopy.Spec.UpdateStrategy.RollingUpdate.Partition = pointer.Int32Ptr(partition - 1)
+		_, err = scc.kubeClient.AppsV1().StatefulSets(stsCopy.Namespace).Update(ctx, stsCopy, metav1.UpdateOptions{})
+		if err != nil {
+			return status, err
+		}
+
+		// Wait for requeue.
+		return status, nil
+	}
+
 	// Scale before the update.
 	for _, req := range requiredStatefulSets {
 		sts := statefulSets[req.Name]
@@ -158,6 +268,8 @@ func (scc *ScyllaClusterController) syncStatefulSets(
 			if len(lastSvc.Labels[naming.DecommissionedLabel]) == 0 {
 				lastSvcCopy := lastSvc.DeepCopy()
 				// Record the intent to decommission the member.
+				// TODO: Move this into syncServices so it reconciles properly. This is edge triggered
+				//  and nothing will reconcile the label if something goes wrong or the flow changes.
 				lastSvcCopy.Labels[naming.DecommissionedLabel] = naming.LabelValueFalse
 				_, err := scc.kubeClient.CoreV1().Services(lastSvcCopy.Namespace).Update(ctx, lastSvcCopy, metav1.UpdateOptions{})
 				if err != nil {
@@ -176,10 +288,37 @@ func (scc *ScyllaClusterController) syncStatefulSets(
 	}
 
 	// Begin update.
-	for _, req := range requiredStatefulSets {
-		// TODO: Check transitions that need more then apply.
+	for _, required := range requiredStatefulSets {
+		// Check for version upgrades first.
+		existing, existingFound := statefulSets[required.Name]
+		if existingFound {
+			requiredVersionString, requiredVersionLabelPresent := required.Labels[naming.ScyllaVersionLabel]
+			existingVersionString, existingVersionLabelPresent := existing.Labels[naming.ScyllaVersionLabel]
 
-		sts, _, err := resourceapply.ApplyStatefulSet(ctx, scc.kubeClient.AppsV1(), scc.statefulSetLister, scc.eventRecorder, req)
+			if requiredVersionLabelPresent && existingVersionLabelPresent {
+				requiredVersion, err := semver.Parse(requiredVersionString)
+				if err != nil {
+					return status, err
+				}
+				existingVersion, err := semver.Parse(existingVersionString)
+				if err != nil {
+					return status, err
+				}
+
+				if requiredVersion.Major != existingVersion.Major ||
+					requiredVersion.Minor != existingVersion.Minor {
+					// We need to run hooks for version upgrades.
+					scc.eventRecorder.Eventf(sc, corev1.EventTypeNormal, "UpgradeStarted", "Version changed from %q to %q", existingVersionString, requiredVersionString)
+
+					// Setting partition to the number of replicas initiates the process.
+					// It also prevents any unwanted updates to pods that would be evicted in the meantime
+					// until we run hooks (like snapshot) for them.
+					required.Spec.UpdateStrategy.RollingUpdate.Partition = required.Spec.Replicas
+				}
+			}
+		}
+
+		sts, _, err := resourceapply.ApplyStatefulSet(ctx, scc.kubeClient.AppsV1(), scc.statefulSetLister, scc.eventRecorder, required)
 		if err != nil {
 			return status, err
 		}
@@ -189,6 +328,10 @@ func (scc *ScyllaClusterController) syncStatefulSets(
 			return status, nil
 		}
 	}
+
+	// All StatefulSets are rolled out.
+
+	// TODO: Clean snapshots.
 
 	return status, nil
 }
