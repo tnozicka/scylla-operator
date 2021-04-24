@@ -1,0 +1,72 @@
+# Copyright (C) 2021 ScyllaDB
+#
+# GitHub doesn't allow to trigger directly when editing PR milestone
+# so we set a label that's used for re-triggering the PR job.
+# https://github.community/t/feature-request-add-milestone-changes-as-activity-type-to-pull-request/16778/7
+
+name: Update milestone label
+
+on:
+  issues:
+    types:
+    - milestoned
+    - demilestoned
+
+jobs:
+  pr_labels:
+    name: Update milestone label
+    runs-on: ubuntu-latest
+    if: ${{ github.event.issue.pull_request }}
+    steps:
+    - name: Update milestone label
+      run: |
+        set -euExo pipefail
+        shopt -s inherit_errexit
+
+        function ghcurl {
+          curl --fail --silent \
+            -H 'Accept: application/vnd.github.v3+json' \
+            -H 'Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}' \
+            "${@}"
+        }
+
+        function set_label {
+          if [[ -z "$( jq -r '.issue.labels | .[] | select(.name=="'"${1}"'") | .name // empty' "${GITHUB_EVENT_PATH}" )" ]]; then
+            echo "Setting label '${1}'."
+            ghcurl -X POST -H "Content-Type: application/json" \
+              --data '{"labels": ["'"${1}"'"]}' \
+              "${{ github.event.issue.url }}/labels"
+          else
+            echo "Label '${1}' already present."
+          fi
+        }
+
+        function unset_label {
+          if [[ ! -z "$( jq -r '.issue.labels | .[] | select(.name=="'"${1}"'") | .name // empty' "${GITHUB_EVENT_PATH}" )" ]]; then
+            echo "Unsetting label '${1}'."
+            # Ignore 404 for deletes. We don't care if the label was deleted by other event handler, we just want it gone.
+            # Unfortunatelly this also ignores connection errors. (Open for improvement.)
+            ghcurl -X DELETE "${{ github.event.issue.url }}/labels/${1}" || true
+          else
+            echo "Label '${1}' already not present."
+          fi
+        }
+
+        labels_json=$( jq -r '[.issue.labels[] | .name]' "${GITHUB_EVENT_PATH}" )
+
+        current_milestone=$( jq -r '.issue.milestone | .title // empty' "${GITHUB_EVENT_PATH}" )
+        if [[ "${current_milestone}" == "" ]]; then
+          set_label "needs-milestone"
+        else
+          current_milestone_label="milestone/${current_milestone}"
+          set_label "milestone/${current_milestone}"
+
+          unset_label "needs-milestone"
+        fi
+
+        milestone_labels=( $( jq -r '.[] | select(startswith("milestone/"))' <( echo "${labels_json}" ) ) )
+        for l in "${milestone_labels[@]}"; do
+          if [[ "${l}" != "milestone/${current_milestone}" ]]; then
+            unset_label "${l}"
+          fi
+        done
