@@ -108,7 +108,6 @@ endef
 # $3 - app version
 # $4 - chart version
 define package-helm
-	echo 'Preparing $(1) Helm Chart'
 	helm package '$(HELM_CHARTS_DIR)/$(1)' --destination '$(2)' --app-version '$(3)' --version '$(4)'
 
 endef
@@ -487,13 +486,13 @@ helm-publish-dev: helm-publish
 
 # Build Helm charts and publish them in GCS repo
 helm-publish:
-	mkdir -p $(HELM_LOCAL_REPO)
-	gsutil rsync -d $(HELM_BUCKET) $(HELM_LOCAL_REPO)
+	mkdir -p '$(HELM_LOCAL_REPO)'
+	gsutil rsync -q -m -d '$(HELM_BUCKET)' '$(HELM_LOCAL_REPO)'
 
-	@$(foreach chart,$(HELM_CHARTS),$(call package-helm,$(chart),$(HELM_LOCAL_REPO),$(HELM_APP_VERSION),$(HELM_CHART_VERSION)))
+	$(foreach chart,$(HELM_CHARTS),$(call package-helm,$(chart),$(HELM_LOCAL_REPO),$(HELM_APP_VERSION),$(HELM_CHART_VERSION)))
 
-	helm repo index $(HELM_LOCAL_REPO) --url $(HELM_REPOSITORY) --merge $(HELM_LOCAL_REPO)/index.yaml
-	gsutil rsync -d $(HELM_LOCAL_REPO) $(HELM_BUCKET)
+	helm repo index '$(HELM_LOCAL_REPO)' --url '$(HELM_REPOSITORY)' --merge '$(HELM_LOCAL_REPO)/index.yaml'
+	gsutil rsync -q -m -d '$(HELM_LOCAL_REPO)' '$(HELM_BUCKET)'
 
 	gsutil setmeta -h 'Content-Type:text/yaml' -h 'Cache-Control: $(HELM_MANIFEST_CACHE_CONTROL)' '$(HELM_BUCKET)/index.yaml'
 .PHONY: helm-publish
