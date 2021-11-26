@@ -6,9 +6,7 @@ import (
 	"path"
 	"time"
 
-	"github.com/onsi/ginkgo"
-	gconfig "github.com/onsi/ginkgo/config"
-	greporters "github.com/onsi/ginkgo/reporters"
+	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 	"github.com/scylladb/scylla-operator/pkg/genericclioptions"
 	"github.com/scylladb/scylla-operator/pkg/signals"
@@ -29,16 +27,15 @@ type RunOptions struct {
 	genericclioptions.ClientConfig
 	TestFrameworkOptions
 
-	Quiet            bool
-	ShowProgress     bool
-	FlakeAttempts    int
-	FailFast         bool
-	FocusStrings     []string
-	SkipStrings      []string
-	SkipMeasurements bool
-	RandomSeed       int64
-	DryRun           bool
-	Color            bool
+	Quiet         bool
+	ShowProgress  bool
+	FlakeAttempts int
+	FailFast      bool
+	FocusStrings  []string
+	SkipStrings   []string
+	RandomSeed    int64
+	DryRun        bool
+	Color         bool
 }
 
 func NewRunOptions(streams genericclioptions.IOStreams) *RunOptions {
@@ -46,16 +43,15 @@ func NewRunOptions(streams genericclioptions.IOStreams) *RunOptions {
 		ClientConfig:         genericclioptions.NewClientConfig("scylla-operator-e2e"),
 		TestFrameworkOptions: NewTestFrameworkOptions(),
 
-		Quiet:            false,
-		ShowProgress:     true,
-		FlakeAttempts:    0,
-		FailFast:         false,
-		FocusStrings:     []string{},
-		SkipStrings:      []string{},
-		SkipMeasurements: false,
-		RandomSeed:       time.Now().Unix(),
-		DryRun:           false,
-		Color:            true,
+		Quiet:         false,
+		ShowProgress:  true,
+		FlakeAttempts: 0,
+		FailFast:      false,
+		FocusStrings:  []string{},
+		SkipStrings:   []string{},
+		RandomSeed:    time.Now().Unix(),
+		DryRun:        false,
+		Color:         true,
 	}
 }
 
@@ -99,7 +95,6 @@ func NewRunCommand(streams genericclioptions.IOStreams) *cobra.Command {
 	cmd.Flags().BoolVarP(&o.FailFast, "fail-fast", "", o.FailFast, "Stops execution after first failed test.")
 	cmd.Flags().StringSliceVarP(&o.FocusStrings, "focus", "", o.FocusStrings, "Regex to select a subset of tests to run.")
 	cmd.Flags().StringSliceVarP(&o.SkipStrings, "skip", "", o.SkipStrings, "Regex to select a subset of tests to skip.")
-	cmd.Flags().BoolVarP(&o.SkipMeasurements, "skip-measurements", "", o.SkipMeasurements, "Skips measurements.")
 	cmd.Flags().Int64VarP(&o.RandomSeed, "random-seed", "", o.RandomSeed, "Seed for the test suite.")
 	cmd.Flags().BoolVarP(&o.DryRun, "dry-run", "", o.DryRun, "Doesn't execute the tests, only prints.")
 	cmd.Flags().BoolVarP(&o.Color, "color", "", o.Color, "Colors the output.")
@@ -164,36 +159,37 @@ func (o *RunOptions) run(ctx context.Context, streams genericclioptions.IOStream
 		DeleteTestingNSPolicy: o.DeleteTestingNSPolicy,
 	}
 
-	gconfig.GinkgoConfig.EmitSpecProgress = o.ShowProgress
-	gconfig.GinkgoConfig.FlakeAttempts = o.FlakeAttempts + 1
-	if gconfig.GinkgoConfig.FlakeAttempts > 1 {
-		klog.Infof("Flakes will be retried up to %d times.", gconfig.GinkgoConfig.FlakeAttempts-1)
+	suiteConfig, reporterConfig := ginkgo.GinkgoConfiguration()
+
+	suiteConfig.EmitSpecProgress = o.ShowProgress
+	suiteConfig.FlakeAttempts = o.FlakeAttempts + 1
+	if suiteConfig.FlakeAttempts > 1 {
+		klog.Infof("Flakes will be retried up to %d times.", suiteConfig.FlakeAttempts-1)
 	}
-	gconfig.GinkgoConfig.FailFast = o.FailFast
-	gconfig.GinkgoConfig.FocusStrings = o.FocusStrings
-	gconfig.GinkgoConfig.SkipStrings = o.SkipStrings
-	gconfig.GinkgoConfig.SkipMeasurements = o.SkipMeasurements
-	gconfig.GinkgoConfig.RandomSeed = o.RandomSeed
-	gconfig.GinkgoConfig.DryRun = o.DryRun
-	gconfig.DefaultReporterConfig.Verbose = !o.Quiet
-	gconfig.DefaultReporterConfig.NoColor = !o.Color
+	suiteConfig.FailFast = o.FailFast
+	suiteConfig.FocusStrings = o.FocusStrings
+	suiteConfig.SkipStrings = o.SkipStrings
+	suiteConfig.RandomSeed = o.RandomSeed
+	suiteConfig.DryRun = o.DryRun
+	reporterConfig.Verbose = !o.Quiet
+	reporterConfig.NoColor = !o.Color
 
 	// Not configurable. We are opinionated about these.
 
 	// Prevents growing a dependency.
-	gconfig.GinkgoConfig.RandomizeAllSpecs = true
+	suiteConfig.RandomizeAllSpecs = true
 	// Better context and it's required for nested assertions. Offset doesn't really solve it as it omits the nested function line.
-	gconfig.DefaultReporterConfig.FullTrace = true
-	gconfig.DefaultReporterConfig.SlowSpecThreshold = 60 // seconds
+	reporterConfig.FullTrace = true
+	reporterConfig.SlowSpecThreshold = 60 // seconds
 
 	gomega.RegisterFailHandler(ginkgo.Fail)
 
-	var r []ginkgo.Reporter
 	if len(o.ArtifactsDir) > 0 {
-		r = append(r, greporters.NewJUnitReporter(path.Join(o.ArtifactsDir, fmt.Sprintf("e2e_%02d.xml", gconfig.GinkgoConfig.ParallelNode))))
+		reporterConfig.JUnitReport = path.Join(o.ArtifactsDir, "e2e.junit.xml")
+		reporterConfig.JSONReport = path.Join(o.ArtifactsDir, "e2e.json")
 	}
 
-	passed := ginkgo.RunSpecsWithDefaultAndCustomReporters(&fakeT{}, suite, r)
+	passed := ginkgo.RunSpecs(&fakeT{}, suite, suiteConfig, reporterConfig)
 	if !passed {
 		return fmt.Errorf("test suite %q failed", suite)
 	}

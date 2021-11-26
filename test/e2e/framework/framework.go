@@ -9,7 +9,7 @@ import (
 	"path"
 	"time"
 
-	g "github.com/onsi/ginkgo"
+	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
 	scyllaclientset "github.com/scylladb/scylla-operator/pkg/client/scylla/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
