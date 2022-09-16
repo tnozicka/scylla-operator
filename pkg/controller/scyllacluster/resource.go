@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	scyllav1 "github.com/scylladb/scylla-operator/pkg/api/scylla/v1"
+	"github.com/scylladb/scylla-operator/pkg/features"
 	"github.com/scylladb/scylla-operator/pkg/helpers"
 	"github.com/scylladb/scylla-operator/pkg/naming"
 	appsv1 "k8s.io/api/apps/v1"
@@ -18,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
@@ -26,6 +28,9 @@ import (
 const (
 	scyllaAgentConfigVolumeName    = "scylla-agent-config-volume"
 	scyllaAgentAuthTokenVolumeName = "scylla-agent-auth-token-volume"
+	scylladbServingCertsVolumeName = "scylladb-serving-certs"
+	scylladbClientCAVolumeName     = "scylladb-client-ca"
+	scylladbUserAdminVolumeName    = "scylladb-user-admin"
 )
 
 const (
@@ -52,7 +57,7 @@ func IdentityService(c *scyllav1.ScyllaCluster) *corev1.Service {
 			Namespace: c.Namespace,
 			Labels:    labels,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(c, controllerGVK),
+				*metav1.NewControllerRef(c, scyllaClusterControllerGVK),
 			},
 		},
 		Spec: corev1.ServiceSpec{
@@ -101,7 +106,7 @@ func MemberService(sc *scyllav1.ScyllaCluster, rackName, name string, oldService
 			Name:      name,
 			Namespace: sc.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(sc, controllerGVK),
+				*metav1.NewControllerRef(sc, scyllaClusterControllerGVK),
 			},
 			Labels: labels,
 		},
@@ -201,7 +206,7 @@ func StatefulSetForRack(r scyllav1.RackSpec, c *scyllav1.ScyllaCluster, existing
 			Namespace: c.Namespace,
 			Labels:    rackLabels,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(c, controllerGVK),
+				*metav1.NewControllerRef(c, scyllaClusterControllerGVK),
 			},
 		},
 		Spec: appsv1.StatefulSetSpec{
@@ -234,51 +239,84 @@ func StatefulSetForRack(r scyllav1.RackSpec, c *scyllav1.ScyllaCluster, existing
 						RunAsUser:  pointer.Int64(rootUID),
 						RunAsGroup: pointer.Int64(rootGID),
 					},
-					Volumes: []corev1.Volume{
-						{
-							Name: "shared",
-							VolumeSource: corev1.VolumeSource{
-								EmptyDir: &corev1.EmptyDirVolumeSource{},
+					Volumes: func() []corev1.Volume {
+						volumes := []corev1.Volume{
+							{
+								Name: "shared",
+								VolumeSource: corev1.VolumeSource{
+									EmptyDir: &corev1.EmptyDirVolumeSource{},
+								},
 							},
-						},
-						{
-							Name: "scylla-config-volume",
-							VolumeSource: corev1.VolumeSource{
-								ConfigMap: &corev1.ConfigMapVolumeSource{
-									LocalObjectReference: corev1.LocalObjectReference{
-										Name: stringOrDefault(r.ScyllaConfig, "scylla-config"),
+							{
+								Name: "scylla-config-volume",
+								VolumeSource: corev1.VolumeSource{
+									ConfigMap: &corev1.ConfigMapVolumeSource{
+										LocalObjectReference: corev1.LocalObjectReference{
+											Name: stringOrDefault(r.ScyllaConfig, "scylla-config"),
+										},
+										Optional: &opt,
 									},
-									Optional: &opt,
 								},
 							},
-						},
-						{
-							Name: scyllaAgentConfigVolumeName,
-							VolumeSource: corev1.VolumeSource{
-								Secret: &corev1.SecretVolumeSource{
-									SecretName: stringOrDefault(r.ScyllaAgentConfig, "scylla-agent-config-secret"),
-									Optional:   &opt,
+							{
+								Name: scyllaAgentConfigVolumeName,
+								VolumeSource: corev1.VolumeSource{
+									Secret: &corev1.SecretVolumeSource{
+										SecretName: stringOrDefault(r.ScyllaAgentConfig, "scylla-agent-config-secret"),
+										Optional:   &opt,
+									},
 								},
 							},
-						},
-						{
-							Name: "scylla-client-config-volume",
-							VolumeSource: corev1.VolumeSource{
-								Secret: &corev1.SecretVolumeSource{
-									SecretName: "scylla-client-config-secret",
-									Optional:   &opt,
+							{
+								Name: "scylla-client-config-volume",
+								VolumeSource: corev1.VolumeSource{
+									Secret: &corev1.SecretVolumeSource{
+										SecretName: "scylla-client-config-secret",
+										Optional:   &opt,
+									},
 								},
 							},
-						},
-						{
-							Name: scyllaAgentAuthTokenVolumeName,
-							VolumeSource: corev1.VolumeSource{
-								Secret: &corev1.SecretVolumeSource{
-									SecretName: naming.AgentAuthTokenSecretName(c.Name),
+							{
+								Name: scyllaAgentAuthTokenVolumeName,
+								VolumeSource: corev1.VolumeSource{
+									Secret: &corev1.SecretVolumeSource{
+										SecretName: naming.AgentAuthTokenSecretName(c.Name),
+									},
 								},
 							},
-						},
-					},
+						}
+
+						if utilfeature.DefaultMutableFeatureGate.Enabled(features.AutomaticTLSCertificates) {
+							volumes = append(volumes, []corev1.Volume{
+								{
+									Name: scylladbServingCertsVolumeName,
+									VolumeSource: corev1.VolumeSource{
+										Secret: &corev1.SecretVolumeSource{
+											SecretName: naming.GetScyllaClusterLocalServingCertName(c.Name),
+										},
+									},
+								},
+								{
+									Name: scylladbClientCAVolumeName,
+									VolumeSource: corev1.VolumeSource{
+										Secret: &corev1.SecretVolumeSource{
+											SecretName: naming.GetScyllaClusterLocalClientCAName(c.Name),
+										},
+									},
+								},
+								{
+									Name: scylladbUserAdminVolumeName,
+									VolumeSource: corev1.VolumeSource{
+										Secret: &corev1.SecretVolumeSource{
+											SecretName: naming.GetScyllaClusterLocalUserAdminCertName(c.Name),
+										},
+									},
+								},
+							}...)
+						}
+
+						return volumes
+					}(),
 					Tolerations: placement.Tolerations,
 					InitContainers: []corev1.Container{
 						{
@@ -319,6 +357,15 @@ func StatefulSetForRack(r scyllav1.RackSpec, c *scyllav1.ScyllaCluster, existing
 							Command: []string{
 								path.Join(naming.SharedDirName, "scylla-operator"),
 								"sidecar",
+								fmt.Sprintf("--feature-gates=%s", func() string {
+									features := utilfeature.DefaultMutableFeatureGate.GetAll()
+									res := make([]string, 0, len(features))
+									for name := range features {
+										res = append(res, fmt.Sprintf("%s=%t", name, utilfeature.DefaultMutableFeatureGate.Enabled(name)))
+									}
+									sort.Strings(res)
+									return strings.Join(res, ",")
+								}()),
 								"--service-name=$(SERVICE_NAME)",
 								"--cpu-count=$(CPU_COUNT)",
 								// TODO: make it configurable
@@ -345,27 +392,51 @@ func StatefulSetForRack(r scyllav1.RackSpec, c *scyllav1.ScyllaCluster, existing
 								},
 							},
 							Resources: r.Resources,
-							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      naming.PVCTemplateName,
-									MountPath: naming.DataDir,
-								},
-								{
-									Name:      "shared",
-									MountPath: naming.SharedDirName,
-									ReadOnly:  true,
-								},
-								{
-									Name:      "scylla-config-volume",
-									MountPath: naming.ScyllaConfigDirName,
-									ReadOnly:  true,
-								},
-								{
-									Name:      "scylla-client-config-volume",
-									MountPath: naming.ScyllaClientConfigDirName,
-									ReadOnly:  true,
-								},
-							},
+							VolumeMounts: func() []corev1.VolumeMount {
+								mounts := []corev1.VolumeMount{
+									{
+										Name:      naming.PVCTemplateName,
+										MountPath: naming.DataDir,
+									},
+									{
+										Name:      "shared",
+										MountPath: naming.SharedDirName,
+										ReadOnly:  true,
+									},
+									{
+										Name:      "scylla-config-volume",
+										MountPath: naming.ScyllaConfigDirName,
+										ReadOnly:  true,
+									},
+									{
+										Name:      "scylla-client-config-volume",
+										MountPath: naming.ScyllaClientConfigDirName,
+										ReadOnly:  true,
+									},
+								}
+
+								if utilfeature.DefaultMutableFeatureGate.Enabled(features.AutomaticTLSCertificates) {
+									mounts = append(mounts, []corev1.VolumeMount{
+										{
+											Name:      scylladbServingCertsVolumeName,
+											MountPath: "/var/run/secrets/scylla-operator.scylladb.com/scylladb/serving-certs",
+											ReadOnly:  true,
+										},
+										{
+											Name:      scylladbClientCAVolumeName,
+											MountPath: "/var/run/secrets/scylla-operator.scylladb.com/scylladb/client-ca",
+											ReadOnly:  true,
+										},
+										{
+											Name:      scylladbUserAdminVolumeName,
+											MountPath: "/var/run/secrets/scylla-operator.scylladb.com/scylladb/user-admin",
+											ReadOnly:  true,
+										},
+									}...)
+								}
+
+								return mounts
+							}(),
 							// Add CAP_SYS_NICE as instructed by scylla logs
 							SecurityContext: &corev1.SecurityContext{
 								RunAsUser:  pointer.Int64(rootUID),
@@ -626,7 +697,7 @@ func MakePodDisruptionBudget(c *scyllav1.ScyllaCluster) *policyv1.PodDisruptionB
 			Name:      naming.PodDisruptionBudgetName(c),
 			Namespace: c.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(c, controllerGVK),
+				*metav1.NewControllerRef(c, scyllaClusterControllerGVK),
 			},
 			Labels: naming.ClusterLabels(c),
 		},
@@ -668,7 +739,7 @@ func MakeIngresses(c *scyllav1.ScyllaCluster, services map[string]*corev1.Servic
 			switch naming.ScyllaServiceType(service.Labels[naming.ScyllaServiceTypeLabel]) {
 			case naming.ScyllaServiceTypeIdentity:
 				for _, domain := range c.Spec.DNSDomains {
-					hosts = append(hosts, fmt.Sprintf("%s.%s.%s", naming.ScyllaIngressSubdomainAny, ip.backendName, domain))
+					hosts = append(hosts, naming.GetCQLAnySubDomain(domain))
 				}
 				labels[naming.ScyllaIngressTypeLabel] = string(naming.ScyllaIngressTypeAnyNode)
 
@@ -685,7 +756,7 @@ func MakeIngresses(c *scyllav1.ScyllaCluster, services map[string]*corev1.Servic
 				}
 
 				for _, domain := range c.Spec.DNSDomains {
-					hosts = append(hosts, fmt.Sprintf("%s.%s.%s", hostID, ip.backendName, domain))
+					hosts = append(hosts, naming.GetCQLHostIDSubDomain(hostID, domain))
 				}
 				labels[naming.ScyllaIngressTypeLabel] = string(naming.ScyllaIngressTypeNode)
 
@@ -701,7 +772,7 @@ func MakeIngresses(c *scyllav1.ScyllaCluster, services map[string]*corev1.Servic
 					Labels:      labels,
 					Annotations: ip.ingressOptions.Annotations,
 					OwnerReferences: []metav1.OwnerReference{
-						*metav1.NewControllerRef(c, controllerGVK),
+						*metav1.NewControllerRef(c, scyllaClusterControllerGVK),
 					},
 				},
 				Spec: networkingv1.IngressSpec{
@@ -763,7 +834,7 @@ func MakeAgentAuthTokenSecret(c *scyllav1.ScyllaCluster, authToken string) (*cor
 			Name:      naming.AgentAuthTokenSecretName(c.Name),
 			Namespace: c.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(c, controllerGVK),
+				*metav1.NewControllerRef(c, scyllaClusterControllerGVK),
 			},
 			Labels: naming.ClusterLabels(c),
 		},
@@ -822,7 +893,7 @@ func MakeServiceAccount(sc *scyllav1.ScyllaCluster, serviceAccounts map[string]*
 			Name:      name,
 			Namespace: sc.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(sc, controllerGVK),
+				*metav1.NewControllerRef(sc, scyllaClusterControllerGVK),
 			},
 			Labels:      naming.ClusterLabels(sc),
 			Annotations: annotations,
@@ -837,7 +908,7 @@ func MakeRoleBinding(sc *scyllav1.ScyllaCluster) *rbacv1.RoleBinding {
 			Name:      saName,
 			Namespace: sc.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(sc, controllerGVK),
+				*metav1.NewControllerRef(sc, scyllaClusterControllerGVK),
 			},
 			Labels: naming.ClusterLabels(sc),
 		},
