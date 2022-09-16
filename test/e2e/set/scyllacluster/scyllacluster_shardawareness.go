@@ -81,7 +81,7 @@ var _ = g.Describe("ScyllaCluster", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 		defer session.Close()
 
-		err = wait.PollImmediate(100*time.Millisecond, 5*time.Second, func() (done bool, err error) {
+		err = wait.PollImmediate(100*time.Millisecond, 15*time.Second, func() (done bool, err error) {
 			return len(connections) == nrShards, nil
 		})
 		o.Expect(err).NotTo(o.HaveOccurred())

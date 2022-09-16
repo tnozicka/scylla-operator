@@ -79,7 +79,9 @@ var _ = g.Describe("ScyllaCluster replace", func() {
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		// Give the controller some time to observe that the pod is down.
-		time.Sleep(10 * time.Second)
+		// We don't have any way to know whether the StatfulSet already observed the pod deletion
+		// and its would be edge triggered in general.
+		time.Sleep(30 * time.Second)
 
 		framework.By("Waiting for the ScyllaCluster to re-deploy")
 		waitCtx3, waitCtx3Cancel := utils.ContextForRollout(ctx, sc)
