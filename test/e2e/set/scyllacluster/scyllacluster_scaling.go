@@ -41,9 +41,12 @@ var _ = g.Describe("ScyllaCluster", func() {
 		sc, err = utils.WaitForScyllaClusterState(waitCtx1, f.ScyllaClient().ScyllaV1(), sc.Namespace, sc.Name, utils.WaitForStateOptions{}, utils.IsScyllaClusterRolledOut)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		di, err := NewDataInserter(ctx, f.KubeClient().CoreV1(), sc, 1)
+		di, err := NewDataInserter(1)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		defer di.Close()
+
+		err = di.SetClientEndpointsAndWaitForConsistencyAll(ctx, f.KubeClient().CoreV1(), sc)
+		o.Expect(err).NotTo(o.HaveOccurred())
 
 		err = di.Insert()
 		o.Expect(err).NotTo(o.HaveOccurred())
@@ -70,9 +73,12 @@ var _ = g.Describe("ScyllaCluster", func() {
 
 		verifyScyllaCluster(ctx, f.KubeClient(), sc, di)
 
-		di, err = NewDataInserter(ctx, f.KubeClient().CoreV1(), sc, 1)
+		di, err = NewDataInserter(1)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		defer di.Close()
+
+		err = di.SetClientEndpointsAndWaitForConsistencyAll(ctx, f.KubeClient().CoreV1(), sc)
+		o.Expect(err).NotTo(o.HaveOccurred())
 
 		err = di.Insert()
 		o.Expect(err).NotTo(o.HaveOccurred())

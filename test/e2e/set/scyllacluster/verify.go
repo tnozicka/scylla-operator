@@ -4,10 +4,12 @@ import (
 	"context"
 	"sort"
 	"strings"
+	"time"
 
 	o "github.com/onsi/gomega"
 	scyllav1 "github.com/scylladb/scylla-operator/pkg/api/scylla/v1"
 	"github.com/scylladb/scylla-operator/pkg/naming"
+	"github.com/scylladb/scylla-operator/pkg/scyllaclient"
 	"github.com/scylladb/scylla-operator/test/e2e/framework"
 	"github.com/scylladb/scylla-operator/test/e2e/utils"
 	appsv1 "k8s.io/api/apps/v1"
@@ -116,12 +118,31 @@ func verifyScyllaCluster(ctx context.Context, kubeClient kubernetes.Interface, s
 
 	verifyPersistentVolumeClaims(ctx, kubeClient.CoreV1(), sc)
 
-	// TODO: Use scylla client to check at least "UN"
 	scyllaClient, hosts, err := utils.GetScyllaClient(ctx, kubeClient.CoreV1(), sc)
 	o.Expect(err).NotTo(o.HaveOccurred())
 	defer scyllaClient.Close()
 
 	o.Expect(hosts).To(o.HaveLen(memberCount))
+
+	// Because of Gossip issues node status is not consistent across different scylla nodes.
+	// Until it's fixed we need to wait for all the nodes to sync to make sure the CQL doesn't hit issues later on.
+	// This loop should be eventually removed and only the explicit and immediate check on a single node should stay.
+	o.Eventually(func(eo o.Gomega) {
+		statuses := make([]scyllaclient.NodeStatusInfoSlice, 0, len(hosts))
+		for _, h := range hosts {
+			s, err := scyllaClient.Status(ctx, h)
+			o.Expect(err).NotTo(o.HaveOccurred())
+
+			framework.Infof("Node %q, down: %q, up: %q", h, strings.Join(s.DownHosts(), ","), strings.Join(s.LiveHosts(), ","))
+			statuses = append(statuses, s)
+		}
+
+		for _, s := range statuses {
+			eo.Expect(s.DownHosts()).To(o.BeEmpty())
+			eo.Expect(s.LiveHosts()).To(o.HaveLen(memberCount))
+			eo.Expect(s.Hosts()).To(o.HaveLen(memberCount))
+		}
+	}).WithTimeout(60 * time.Second).WithPolling(1 * time.Second).Should(o.Succeed())
 
 	status, err := scyllaClient.Status(ctx, "")
 	o.Expect(err).NotTo(o.HaveOccurred())

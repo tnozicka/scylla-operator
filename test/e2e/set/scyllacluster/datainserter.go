@@ -17,13 +17,13 @@ import (
 	"github.com/scylladb/scylla-operator/test/e2e/utils"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/apimachinery/pkg/util/wait"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
 const nRows = 10
 
 type DataInserter struct {
-	client            corev1client.CoreV1Interface
 	session           *gocqlx.Session
 	keyspace          string
 	table             *table.Table
@@ -36,7 +36,7 @@ type TestData struct {
 	Data string `db:"data"`
 }
 
-func NewDataInserter(ctx context.Context, client corev1client.CoreV1Interface, sc *scyllav1.ScyllaCluster, replicationFactor int32) (*DataInserter, error) {
+func NewDataInserter(replicationFactor int32) (*DataInserter, error) {
 	if replicationFactor < 1 {
 		return nil, fmt.Errorf("replication factor can't be set to less than 1")
 	}
@@ -53,33 +53,57 @@ func NewDataInserter(ctx context.Context, client corev1client.CoreV1Interface, s
 	}
 
 	di := &DataInserter{
-		client:            client,
 		keyspace:          keyspace,
 		table:             table,
 		data:              data,
 		replicationFactor: replicationFactor,
 	}
 
-	var err error
-	di.session, err = di.createSession(ctx, sc)
-	if err != nil {
-		return nil, fmt.Errorf("can't create session: %w", err)
-	}
-
 	return di, nil
 }
 
 func (di *DataInserter) Close() {
-	di.session.Close()
+	if di.session != nil {
+		di.session.Close()
+	}
 }
 
-// UpdateClientEndpoints closes an existing session and opens a new one.
+// SetClientEndpointsAndWaitForConsistencyAll create a new session and closes a previous session if it existed.
+// It will wait for scylla to reach consistency ALL.
 // In case an error was returned, DataInserter can no Longer be used.
-func (di *DataInserter) UpdateClientEndpoints(ctx context.Context, sc *scyllav1.ScyllaCluster) error {
-	di.session.Close()
+func (di *DataInserter) SetClientEndpointsAndWaitForConsistencyAll(ctx context.Context, client corev1client.CoreV1Interface, sc *scyllav1.ScyllaCluster) error {
+	di.Close()
 
-	var err error
-	di.session, err = di.createSession(ctx, sc)
+	scyllaClient, hosts, err := utils.GetScyllaClient(ctx, client, sc)
+	if err != nil {
+		return fmt.Errorf("can't get scylla client: %w", err)
+	}
+	defer scyllaClient.Close()
+
+	// Unfortunately, Gossip status propagation can take well over a minute, so we need to set a large timeout.
+	err = wait.PollImmediateWithContext(ctx, 5*time.Minute, time.Second, func(ctx context.Context) (done bool, err error) {
+		allSeeAllAsUN := true
+		for _, h := range hosts {
+			s, err := scyllaClient.Status(ctx, h)
+			if err != nil {
+				return true, fmt.Errorf("can't get scylla status on node %q: %w", h, err)
+			}
+
+			downHosts := s.DownHosts()
+			framework.Infof("Node %q, down: %q, up: %q", h, strings.Join(downHosts, ","), strings.Join(s.LiveHosts(), ","))
+
+			if len(downHosts) != 0 {
+				allSeeAllAsUN = false
+			}
+		}
+
+		return allSeeAllAsUN, nil
+	})
+	if err != nil {
+		return fmt.Errorf("can't wait for nodes to reach consistency ALL: %w", err)
+	}
+
+	di.session, err = di.createSession(hosts)
 	if err != nil {
 		return fmt.Errorf("can't create session: %w", err)
 	}
@@ -134,12 +158,7 @@ func (di *DataInserter) GetExpected() []*TestData {
 	return di.data
 }
 
-func (di *DataInserter) createSession(ctx context.Context, sc *scyllav1.ScyllaCluster) (*gocqlx.Session, error) {
-	hosts, err := utils.GetHosts(ctx, di.client, sc)
-	if err != nil {
-		return nil, fmt.Errorf("can't get hosts: %w", err)
-	}
-
+func (di *DataInserter) createSession(hosts []string) (*gocqlx.Session, error) {
 	clusterConfig := gocql.NewCluster(hosts...)
 	clusterConfig.Timeout = 3 * time.Second
 	clusterConfig.ConnectTimeout = 3 * time.Second

@@ -90,9 +90,12 @@ var _ = g.Describe("ScyllaCluster webhook", func() {
 		validSC, err = utils.WaitForScyllaClusterState(waitCtx1, f.ScyllaClient().ScyllaV1(), validSC.Namespace, validSC.Name, utils.WaitForStateOptions{}, utils.IsScyllaClusterRolledOut)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		di, err := NewDataInserter(ctx, f.KubeClient().CoreV1(), validSC, utils.GetMemberCount(validSC))
+		di, err := NewDataInserter(utils.GetMemberCount(validSC))
 		o.Expect(err).NotTo(o.HaveOccurred())
 		defer di.Close()
+
+		err = di.SetClientEndpointsAndWaitForConsistencyAll(ctx, f.KubeClient().CoreV1(), validSC)
+		o.Expect(err).NotTo(o.HaveOccurred())
 
 		err = di.Insert()
 		o.Expect(err).NotTo(o.HaveOccurred())
