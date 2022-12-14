@@ -22,7 +22,7 @@ var (
 
 	//go:embed "overview-dashboard.configmap.yaml"
 	grafanaOverviewDashboardConfigMapTemplateString string
-	GrafanaOverviewDashboardConfigMapTemplate       = ParseObjectTemplateOrDie[*corev1.ConfigMap]("grafana-overview-dashboard", grafanaOverviewDashboardConfigMapTemplateString)
+	GrafanaOverviewDashboardConfigMapTemplate       = ParseObjectTemplateOrDie[*corev1.ConfigMap]("grafana-overview-dashboard-cm", grafanaOverviewDashboardConfigMapTemplateString)
 
 	//go:embed "overview.grafanadashboard.yaml"
 	grafanaOverviewDashboardTemplateString string

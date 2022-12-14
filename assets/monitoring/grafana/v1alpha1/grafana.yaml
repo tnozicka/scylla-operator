@@ -13,7 +13,7 @@ spec:
   - "{{ .scyllaDBMonitoringName }}-prometheus-client-grafana"
   configMaps:
   - "{{ .scyllaDBMonitoringName }}-prometheus-serving-ca"
-  - "{{ .scyllaDBMonitoringName }}-overview-dashboard"
+  - "{{ .scyllaDBMonitoringName }}-grafana-dashboard-overview"
   config:
     log:
       mode: "console"
@@ -26,7 +26,7 @@ spec:
     auth.anonymous:
       enabled: True
     dashboards:
-      default_home_dashboard_path: "/etc/grafana-configmaps/{{ .scyllaDBMonitoringName }}-overview-dashboard/overview.json"
+      default_home_dashboard_path: "/etc/grafana-configmaps/{{ .scyllaDBMonitoringName }}-grafana-dashboard-overview/overview.json"
     security:
       admin_user: "admin"
       admin_password: "{{ .password }}"

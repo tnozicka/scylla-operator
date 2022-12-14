@@ -6,6 +6,6 @@ metadata:
     app: grafana
 spec:
   configMapRef:
-    name: '{{ .scyllaDBMonitoringName }}-overview-dashboard'
+    name: '{{ .scyllaDBMonitoringName }}-grafana-dashboard-overview'
     key: overview.json
 

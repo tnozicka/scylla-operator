@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: '{{ .scyllaDBMonitoringName }}-overview-dashboard'
+  name: '{{ .scyllaDBMonitoringName }}-grafana-dashboard-overview'
 data:
   overview.json: |-
     {{`{
