@@ -53,9 +53,17 @@ func makePrometheusRule(sm *scyllav1alpha1.ScyllaDBMonitoring) (*monitoringv1.Pr
 }
 
 func makePrometheus(sm *scyllav1alpha1.ScyllaDBMonitoring) (*monitoringv1.Prometheus, string, error) {
-	var volumeClaimTemplate *corev1.PersistentVolumeClaim
-	if sm.Spec.Components != nil && sm.Spec.Components.Prometheus != nil {
-		volumeClaimTemplate = sm.Spec.Components.Prometheus.Storage.VolumeClaimTemplate
+	var volumeClaimTemplate *monitoringv1.EmbeddedPersistentVolumeClaim
+	if sm.Spec.Components != nil && sm.Spec.Components.Prometheus != nil && sm.Spec.Components.Prometheus.Storage != nil {
+		volumeClaimTemplate = &monitoringv1.EmbeddedPersistentVolumeClaim{
+			EmbeddedObjectMetadata: monitoringv1.EmbeddedObjectMetadata{
+				Name:        fmt.Sprintf("%s-prometheus", sm.Name),
+				Labels:      sm.Spec.Components.Prometheus.Storage.VolumeClaimTemplate.Labels,
+				Annotations: sm.Spec.Components.Prometheus.Storage.VolumeClaimTemplate.Annotations,
+			},
+			Spec: sm.Spec.Components.Prometheus.Storage.VolumeClaimTemplate.Spec,
+		}
+
 	}
 	return prometheusv1assets.PrometheusTemplate.RenderObject(map[string]any{
 		"namespace":              sm.Namespace,

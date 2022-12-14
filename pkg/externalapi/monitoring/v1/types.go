@@ -704,8 +704,8 @@ type EmbeddedPersistentVolumeClaim struct {
 }
 
 // EmbeddedObjectMetadata contains a subset of the fields included in k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta
-// Only fields which are relevant to embedded resources are included.
 type EmbeddedObjectMetadata struct {
+	// Only fields which are relevant to embedded resources are included.
 	// Name must be unique within a namespace. Is required when creating resources, although
 	// some resources may allow a client to request the generation of an appropriate name
 	// automatically. Name is primarily intended for creation idempotence and configuration

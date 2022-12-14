@@ -62,10 +62,32 @@ type PlacementSpec struct {
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
-type StorageSpec struct {
+type PrometheusVolumeClaimTemplate struct {
+	// The specification for the PersistentVolumeClaim. The entire content is
+	// copied unchanged into the PVC that gets created from this
+	// template. The same fields as in a PersistentVolumeClaim
+	// are also valid here.
+	Spec corev1.PersistentVolumeClaimSpec `json:"spec"`
+}
+
+type Storage struct {
+	// Map of string keys and values that can be used to organize and categorize
+	// (scope and select) objects. May match selectors of replication controllers
+	// and services.
+	// More info: http://kubernetes.io/docs/user-guide/labels
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
+
+	// Annotations is an unstructured key value map stored with a resource that may be
+	// set by external tools to store and retrieve arbitrary metadata. They are not
+	// queryable and should be preserved when modifying objects.
+	// More info: http://kubernetes.io/docs/user-guide/annotations
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+
 	// volumeClaimTemplates is a PVC template defining storage to be used with Prometheus.
 	// +optional
-	VolumeClaimTemplate *corev1.PersistentVolumeClaim `json:"volumeClaimTemplate,omitempty"`
+	VolumeClaimTemplate corev1.PersistentVolumeClaimTemplate `json:"volumeClaimTemplate,omitempty"`
 }
 
 type PrometheusSpec struct {
@@ -79,7 +101,7 @@ type PrometheusSpec struct {
 
 	// storage describes the underlying storage that Scylla will consume.
 	// +kubebuilder:validation:Required
-	Storage StorageSpec `json:"storage"`
+	Storage *Storage `json:"storage"`
 }
 
 type GrafanaSpec struct {

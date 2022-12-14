@@ -384,7 +384,13 @@ func ApplyGenericWithProjection[T kubeinterfaces.ObjectInterface](
 		}
 
 		resourcemerge.SanitizeObject(requiredCopy)
-		actual, err := control.Create(ctx, requiredCopy, metav1.CreateOptions{})
+		actual, err := control.Create(
+			ctx,
+			requiredCopy,
+			metav1.CreateOptions{
+				FieldValidation: metav1.FieldValidationStrict,
+			},
+		)
 		if apierrors.IsAlreadyExists(err) {
 			klog.V(2).InfoS("Already exists (stale cache)", "Service", klog.KObj(requiredCopy))
 		} else {
@@ -424,7 +430,13 @@ func ApplyGenericWithProjection[T kubeinterfaces.ObjectInterface](
 		requiredCopy.SetResourceVersion(existing.GetResourceVersion())
 	}
 
-	actual, err := control.Update(ctx, requiredCopy, metav1.UpdateOptions{})
+	actual, err := control.Update(
+		ctx,
+		requiredCopy,
+		metav1.UpdateOptions{
+			FieldValidation: metav1.FieldValidationStrict,
+		},
+	)
 	if apierrors.IsConflict(err) {
 		klog.V(2).InfoS("Hit update conflict, will retry.", "Service", klog.KObj(requiredCopy))
 	} else {

@@ -285,6 +285,25 @@ metadata:
   name: "sm-name"
 spec:
   serviceAccountName: "sm-name-prometheus"
+  web:
+    pageTitle: "ScyllaDB Prometheus"
+    tlsConfig:
+      cert:
+        secret:
+          name: "sm-name-prometheus-serving-certs"
+          key: "tls.crt"
+      keySecret:
+        name: "sm-name-prometheus-serving-certs"
+        key: "tls.key"
+#      clientAuthType: "RequireAndVerifyClientCert"
+#      TODO: we need the prometheus-operator not to require certs only for /-/readyz or to do exec probes that can read certs
+      clientAuthType: "RequestClientCert"
+      client_ca:
+        configMap:
+          name: "sm-name-prometheus-client-ca"
+          key: "ca-bundle.crt"
+    httpConfig:
+      http2: true
   serviceMonitorSelector:
     matchLabels: {}
   resources:
@@ -310,8 +329,8 @@ spec:
 				Spec: scyllav1alpha1.ScyllaDBMonitoringSpec{
 					Components: &scyllav1alpha1.Components{
 						Prometheus: &scyllav1alpha1.PrometheusSpec{
-							Storage: scyllav1alpha1.StorageSpec{
-								VolumeClaimTemplate: &corev1.PersistentVolumeClaim{
+							Storage: &scyllav1alpha1.Storage{
+								VolumeClaimTemplate: corev1.PersistentVolumeClaimTemplate{
 									ObjectMeta: metav1.ObjectMeta{},
 									Spec: corev1.PersistentVolumeClaimSpec{
 										StorageClassName: pointer.String("pv-class"),
@@ -334,6 +353,25 @@ metadata:
   name: "sm-name"
 spec:
   serviceAccountName: "sm-name-prometheus"
+  web:
+    pageTitle: "ScyllaDB Prometheus"
+    tlsConfig:
+      cert:
+        secret:
+          name: "sm-name-prometheus-serving-certs"
+          key: "tls.crt"
+      keySecret:
+        name: "sm-name-prometheus-serving-certs"
+        key: "tls.key"
+#      clientAuthType: "RequireAndVerifyClientCert"
+#      TODO: we need the prometheus-operator not to require certs only for /-/readyz or to do exec probes that can read certs
+      clientAuthType: "RequestClientCert"
+      client_ca:
+        configMap:
+          name: "sm-name-prometheus-client-ca"
+          key: "ca-bundle.crt"
+    httpConfig:
+      http2: true
   serviceMonitorSelector:
     matchLabels: {}
   resources:
@@ -350,7 +388,7 @@ spec:
   storage:
     volumeClaimTemplate:
       metadata:
-        creationTimestamp: null
+        name: sm-name-prometheus
       spec:
         resources:
           requests:
