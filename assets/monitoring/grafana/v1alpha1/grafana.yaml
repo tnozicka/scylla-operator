@@ -9,7 +9,7 @@ spec:
   ingress:
     enabled: False
   secrets:
-  - "{{ .scyllaDBMonitoringName }}-grafana-serving-certs"
+  - "{{ .servingCertSecretName }}"
   - "{{ .scyllaDBMonitoringName }}-prometheus-client-grafana"
   configMaps:
   - "{{ .scyllaDBMonitoringName }}-prometheus-serving-ca"
