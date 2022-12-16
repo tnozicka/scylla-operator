@@ -285,6 +285,10 @@ metadata:
   name: "sm-name"
 spec:
   serviceAccountName: "sm-name-prometheus"
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    fsGroup: 65534
   web:
     pageTitle: "ScyllaDB Prometheus"
     tlsConfig:
@@ -306,9 +310,12 @@ spec:
       http2: true
   serviceMonitorSelector:
     matchLabels: {}
+  affinity:
+    {}
+  tolerations:
+    null
   resources:
-    requests:
-      memory: 400Mi
+    {}
   alerting:
     alertmanagers:
     - namespace: ""
@@ -353,6 +360,10 @@ metadata:
   name: "sm-name"
 spec:
   serviceAccountName: "sm-name-prometheus"
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    fsGroup: 65534
   web:
     pageTitle: "ScyllaDB Prometheus"
     tlsConfig:
@@ -374,9 +385,12 @@ spec:
       http2: true
   serviceMonitorSelector:
     matchLabels: {}
+  affinity:
+    {}
+  tolerations:
+    null
   resources:
-    requests:
-      memory: 400Mi
+    {}
   alerting:
     alertmanagers:
     - namespace: ""
