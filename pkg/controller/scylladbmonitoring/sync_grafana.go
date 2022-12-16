@@ -49,10 +49,28 @@ func generateGrafanaPassword() string {
 }
 
 func makeGrafana(sm *scyllav1alpha1.ScyllaDBMonitoring, grafanas map[string]*integreatlyv1alpha1.Grafana, grafanaServingCertSecretName string) (*integreatlyv1alpha1.Grafana, error) {
+	var affinity corev1.Affinity
+	var tolerations []corev1.Toleration
+	if sm.Spec.Components != nil && sm.Spec.Components.Grafana != nil && sm.Spec.Components.Grafana.Placement != nil {
+		affinity.NodeAffinity = sm.Spec.Components.Grafana.Placement.NodeAffinity
+		affinity.PodAffinity = sm.Spec.Components.Grafana.Placement.PodAffinity
+		affinity.PodAntiAffinity = sm.Spec.Components.Grafana.Placement.PodAntiAffinity
+
+		tolerations = sm.Spec.Components.Grafana.Placement.Tolerations
+	}
+
+	var resources corev1.ResourceRequirements
+	if sm.Spec.Components != nil && sm.Spec.Components.Grafana != nil {
+		resources = sm.Spec.Components.Grafana.Resources
+	}
+
 	required, _, err := grafanav1alpha1assets.GrafanaTemplate.RenderObject(map[string]any{
 		"scyllaDBMonitoringName": sm.Name,
 		"password":               "::to::be:replaced::",
 		"servingCertSecretName":  grafanaServingCertSecretName,
+		"affinity":               affinity,
+		"tolerations":            tolerations,
+		"resources":              resources,
 	})
 	if err != nil {
 		return required, err

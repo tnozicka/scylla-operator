@@ -43,6 +43,8 @@ type HTTPSExposeOptions struct {
 	Ingress *IngressOptions `json:"ingress,omitempty"`
 }
 
+// PlacementSpec defines pod placement.
+// TODO: move this to corev1.Affinity in v1alpha2
 type PlacementSpec struct {
 	// nodeAffinity describes node affinity scheduling rules for the pod.
 	// +optional
@@ -96,7 +98,6 @@ type PrometheusSpec struct {
 	Placement *PlacementSpec `json:"placement,omitempty"`
 
 	// resources the Scylla container will use.
-	// +kubebuilder:default:={requests: {cpu: "50m", memory: "100M"}}
 	Resources corev1.ResourceRequirements `json:"resources"`
 
 	// storage describes the underlying storage that Scylla will consume.
@@ -110,7 +111,6 @@ type GrafanaSpec struct {
 	Placement *PlacementSpec `json:"placement,omitempty"`
 
 	// resources the Scylla container will use.
-	// +kubebuilder:default:={requests: {cpu: "50m", memory: "100M"}}
 	Resources corev1.ResourceRequirements `json:"resources"`
 
 	// exposeOptions specifies options for exposing Grafana UI.

@@ -41,10 +41,10 @@ spec:
   dashboardLabelSelector:
   - matchLabels:
       scylla-operator.scylladb.com/scylladbmonitoring-name: "{{ .scyllaDBMonitoringName }}"
+  deployment:
+    affinity:
+      {{- .affinity | toYAML | nindent 6 }}
+    tolerations:
+      {{- .tolerations | toYAML | nindent 6 }}
   resources:
-    limits:
-      cpu: 200m
-      memory: 200Mi
-    requests:
-      cpu: 100m
-      memory: 100Mi
+    {{- .resources | toYAML | nindent 4 }}

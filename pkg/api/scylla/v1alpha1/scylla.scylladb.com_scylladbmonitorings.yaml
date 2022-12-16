@@ -549,10 +549,6 @@ spec:
                               type: array
                           type: object
                         resources:
-                          default:
-                            requests:
-                              cpu: 50m
-                              memory: 100M
                           description: resources the Scylla container will use.
                           properties:
                             limits:
@@ -1066,10 +1062,6 @@ spec:
                               type: array
                           type: object
                         resources:
-                          default:
-                            requests:
-                              cpu: 50m
-                              memory: 100M
                           description: resources the Scylla container will use.
                           properties:
                             limits:

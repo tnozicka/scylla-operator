@@ -29,9 +29,12 @@ spec:
       http2: true
   serviceMonitorSelector:
     matchLabels: {}
+  affinity:
+    {{- .affinity | toYAML | nindent 4 }}
+  tolerations:
+    {{- .tolerations | toYAML | nindent 4 }}
   resources:
-    requests:
-      memory: 400Mi
+    {{- .resources | toYAML | nindent 4 }}
   alerting:
     alertmanagers:
     - namespace: "{{ .namespace }}"

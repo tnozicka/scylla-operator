@@ -65,10 +65,29 @@ func makePrometheus(sm *scyllav1alpha1.ScyllaDBMonitoring) (*monitoringv1.Promet
 		}
 
 	}
+
+	affinity := corev1.Affinity{}
+	var tolerations []corev1.Toleration
+	if sm.Spec.Components != nil && sm.Spec.Components.Prometheus != nil && sm.Spec.Components.Prometheus.Placement != nil {
+		affinity.NodeAffinity = sm.Spec.Components.Prometheus.Placement.NodeAffinity
+		affinity.PodAffinity = sm.Spec.Components.Prometheus.Placement.PodAffinity
+		affinity.PodAntiAffinity = sm.Spec.Components.Prometheus.Placement.PodAntiAffinity
+
+		tolerations = sm.Spec.Components.Prometheus.Placement.Tolerations
+	}
+
+	var resources corev1.ResourceRequirements
+	if sm.Spec.Components != nil && sm.Spec.Components.Prometheus != nil {
+		resources = sm.Spec.Components.Prometheus.Resources
+	}
+
 	return prometheusv1assets.PrometheusTemplate.RenderObject(map[string]any{
 		"namespace":              sm.Namespace,
 		"scyllaDBMonitoringName": sm.Name,
 		"volumeClaimTemplate":    volumeClaimTemplate,
+		"affinity":               affinity,
+		"tolerations":            tolerations,
+		"resources":              resources,
 	})
 }
 

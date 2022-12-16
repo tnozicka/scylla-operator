@@ -3501,10 +3501,6 @@ spec:
                               type: array
                           type: object
                         resources:
-                          default:
-                            requests:
-                              cpu: 50m
-                              memory: 100M
                           description: resources the Scylla container will use.
                           properties:
                             limits:
@@ -4018,10 +4014,6 @@ spec:
                               type: array
                           type: object
                         resources:
-                          default:
-                            requests:
-                              cpu: 50m
-                              memory: 100M
                           description: resources the Scylla container will use.
                           properties:
                             limits:
@@ -4334,6 +4326,7 @@ rules:
   - scylla.scylladb.com
   resources:
   - scyllaclusters
+  - scylladbmonitorings
   verbs:
   - create
   - patch
@@ -4355,6 +4348,7 @@ rules:
   - scylla.scylladb.com
   resources:
   - scyllaclusters
+  - scylladbmonitorings
   verbs:
   - get
   - list
