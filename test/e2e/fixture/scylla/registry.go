@@ -8,6 +8,7 @@ import (
 	scyllav1alpha1 "github.com/scylladb/scylla-operator/pkg/api/scylla/v1alpha1"
 	"github.com/scylladb/scylla-operator/pkg/assets"
 	"github.com/scylladb/scylla-operator/test/e2e/scheme"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -25,6 +26,10 @@ var (
 	//go:embed "scylladbmonitoring.yaml.tmpl"
 	scyllaDBMonitoringTemplateString string
 	ScyllaDBMonitoringTemplate       = ParseObjectTemplateOrDie[*scyllav1alpha1.ScyllaDBMonitoring]("scylladbmonitoring", scyllaDBMonitoringTemplateString)
+
+	//go:embed "scylladbmonitoring.ingress.yaml.tmpl"
+	scyllaDBMonitoringE2EPrometheusIngressTemplateString string
+	ScyllaDBMonitoringE2EPrometheusIngressTemplate       = ParseObjectTemplateOrDie[*networkingv1.Ingress]("scylladbmonitoring-e2e-prometheus-ingress", scyllaDBMonitoringE2EPrometheusIngressTemplateString)
 )
 
 type ScyllaClusterBytes []byte
