@@ -15,7 +15,7 @@ spec:
           ingress:
             ingressClassName: haproxy
             dnsDomains:
-            - "{{ .name }}-grafana.{{ .namespace }}.svc"
+            - "{{ .name }}-grafana.{{ .namespace }}.apps.cluster.scylladb.com"
             annotations:
               haproxy-ingress.github.io/ssl-passthrough: "true"
 # FIXME: add PVC for prometheus

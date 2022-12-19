@@ -19,6 +19,7 @@ require (
 	github.com/go-openapi/validate v0.22.0
 	github.com/gocql/gocql v1.2.1
 	github.com/google/go-cmp v0.5.9
+	github.com/grafana/grafana-api-golang-client v0.16.0
 	github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed
 	github.com/hashicorp/go-version v1.6.0
 	github.com/magiconair/properties v1.8.6
@@ -99,6 +100,7 @@ require (
 	github.com/google/gnostic v0.6.9 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect

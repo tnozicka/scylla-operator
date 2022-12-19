@@ -2,6 +2,7 @@ package assets
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"text/template"
@@ -10,9 +11,10 @@ import (
 )
 
 var TemplateFuncs template.FuncMap = template.FuncMap{
-	"toYAML":  marshalYAML,
-	"indent":  indent,
-	"nindent": nindent,
+	"toYAML":   marshalYAML,
+	"indent":   indent,
+	"nindent":  nindent,
+	"toBase64": toBase64,
 }
 
 func marshalYAML(v any) (string, error) {
@@ -27,6 +29,10 @@ func indent(spaceCount int, s string) string {
 
 func nindent(spaceCount int, s string) string {
 	return "\n" + indent(spaceCount, s)
+}
+
+func toBase64(data []byte) string {
+	return base64.StdEncoding.EncodeToString(data)
 }
 
 func RenderTemplate(tmpl *template.Template, inputs any) ([]byte, error) {

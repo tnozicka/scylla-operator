@@ -88,6 +88,20 @@ func makeGrafana(sm *scyllav1alpha1.ScyllaDBMonitoring, grafanas map[string]*int
 	return required, nil
 }
 
+func makeGrafanaAccessSecret(sm *scyllav1alpha1.ScyllaDBMonitoring, grafana *integreatlyv1alpha1.Grafana) (*corev1.Secret, string, error) {
+	var username, password []byte
+	if grafana != nil && grafana.Spec.Config.Security != nil {
+		username = []byte(grafana.Spec.Config.Security.AdminUser)
+		password = []byte(grafana.Spec.Config.Security.AdminPassword)
+	}
+
+	return grafanav1alpha1assets.GrafanaAccessCredentialsSecretTemplateString.RenderObject(map[string]any{
+		"scyllaDBMonitoringName": sm.Name,
+		"username":               username,
+		"password":               password,
+	})
+}
+
 func makeGrafanaOverviewDashboardConfigMap(sm *scyllav1alpha1.ScyllaDBMonitoring) (*corev1.ConfigMap, string, error) {
 	return grafanav1alpha1assets.GrafanaOverviewDashboardConfigMapTemplate.RenderObject(map[string]any{
 		"scyllaDBMonitoringName": sm.Name,
@@ -193,6 +207,9 @@ func (smc *Controller) syncGrafana(
 	requiredGrafana, err := makeGrafana(sm, grafanas, grafanaServingCertSecretName)
 	renderErrors = append(renderErrors, err)
 
+	requiredGrafanaAccessSecret, _, err := makeGrafanaAccessSecret(sm, requiredGrafana)
+	renderErrors = append(renderErrors, err)
+
 	renderError := kutilerrors.NewAggregate(renderErrors)
 	if renderError != nil {
 		return progressingConditions, renderError
@@ -200,16 +217,6 @@ func (smc *Controller) syncGrafana(
 
 	// Prune objects.
 	var pruneErrors []error
-
-	err = controllerhelpers.Prune(
-		ctx,
-		helpers.ToArray(requiredOverviewDashboardConfigMap),
-		configMaps,
-		&controllerhelpers.PruneControlFuncs{
-			DeleteFunc: smc.kubeClient.CoreV1().ConfigMaps(sm.Namespace).Delete,
-		},
-	)
-	pruneErrors = append(pruneErrors, err)
 
 	err = controllerhelpers.Prune(
 		ctx,
@@ -253,7 +260,7 @@ func (smc *Controller) syncGrafana(
 
 	err = controllerhelpers.Prune(
 		ctx,
-		certChainConfigs.GetMetaSecrets(),
+		append([]*corev1.Secret{requiredGrafanaAccessSecret}, certChainConfigs.GetMetaSecrets()...),
 		secrets,
 		&controllerhelpers.PruneControlFuncs{
 			DeleteFunc: smc.kubeClient.CoreV1().Secrets(sm.Namespace).Delete,
@@ -263,7 +270,12 @@ func (smc *Controller) syncGrafana(
 
 	err = controllerhelpers.Prune(
 		ctx,
-		certChainConfigs.GetMetaConfigMaps(),
+		append(
+			[]*corev1.ConfigMap{
+				requiredOverviewDashboardConfigMap,
+			},
+			certChainConfigs.GetMetaConfigMaps()...,
+		),
 		configMaps,
 		&controllerhelpers.PruneControlFuncs{
 			DeleteFunc: smc.kubeClient.CoreV1().ConfigMaps(sm.Namespace).Delete,
@@ -289,6 +301,14 @@ func (smc *Controller) syncGrafana(
 				GetCachedFunc: smc.configMapLister.ConfigMaps(sm.Namespace).Get,
 				CreateFunc:    smc.kubeClient.CoreV1().ConfigMaps(sm.Namespace).Create,
 				UpdateFunc:    smc.kubeClient.CoreV1().ConfigMaps(sm.Namespace).Update,
+			}.ToUntyped(),
+		},
+		{
+			required: requiredGrafanaAccessSecret,
+			control: resourceapply.ApplyControlFuncs[*corev1.Secret]{
+				GetCachedFunc: smc.secretLister.Secrets(sm.Namespace).Get,
+				CreateFunc:    smc.kubeClient.CoreV1().Secrets(sm.Namespace).Create,
+				UpdateFunc:    smc.kubeClient.CoreV1().Secrets(sm.Namespace).Update,
 			}.ToUntyped(),
 		},
 		{

@@ -20,6 +20,10 @@ var (
 	grafanaTemplateString string
 	GrafanaTemplate       = ParseObjectTemplateOrDie[*integreatlyv1alpha1.Grafana]("grafana", grafanaTemplateString)
 
+	//go:embed "grafana-access-credentials.secret.yaml"
+	grafanaAccessCredentialsSecretTemplateString string
+	GrafanaAccessCredentialsSecretTemplateString = ParseObjectTemplateOrDie[*corev1.Secret]("grafana-access-credentials-secret", grafanaAccessCredentialsSecretTemplateString)
+
 	//go:embed "overview-dashboard.configmap.yaml"
 	grafanaOverviewDashboardConfigMapTemplateString string
 	GrafanaOverviewDashboardConfigMapTemplate       = ParseObjectTemplateOrDie[*corev1.ConfigMap]("grafana-overview-dashboard-cm", grafanaOverviewDashboardConfigMapTemplateString)

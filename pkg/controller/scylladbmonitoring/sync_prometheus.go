@@ -135,6 +135,7 @@ func (smc *Controller) syncPrometheus(
 					IPAddresses: nil,
 					DNSNames: []string{
 						fmt.Sprintf("%s-prometheus", sm.Name),
+						fmt.Sprintf("%s-prometheus.%s.svc", sm.Name, sm.Namespace),
 					},
 				}).ToCreator(),
 			},

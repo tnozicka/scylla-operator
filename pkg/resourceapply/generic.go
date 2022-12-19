@@ -159,6 +159,15 @@ func Apply(
 			options,
 		)
 
+	case *corev1.Secret:
+		return ApplySecret2(
+			ctx,
+			required.(*corev1.Secret),
+			TypeApplyControlInterface[*corev1.Secret](control),
+			recorder,
+			options,
+		)
+
 	case *corev1.ServiceAccount:
 		return ApplyServiceAccount2(
 			ctx,
@@ -313,6 +322,16 @@ func ApplyConfigMap2(
 	options ApplyOptions,
 ) (*corev1.ConfigMap, bool, error) {
 	return ApplyGeneric[*corev1.ConfigMap](ctx, required, control, recorder, options)
+}
+
+func ApplySecret2(
+	ctx context.Context,
+	required *corev1.Secret,
+	control ApplyControlInterface[*corev1.Secret],
+	recorder record.EventRecorder,
+	options ApplyOptions,
+) (*corev1.Secret, bool, error) {
+	return ApplyGeneric[*corev1.Secret](ctx, required, control, recorder, options)
 }
 
 func ApplyService2(
