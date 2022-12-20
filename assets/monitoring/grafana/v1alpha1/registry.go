@@ -22,7 +22,11 @@ var (
 
 	//go:embed "grafana-access-credentials.secret.yaml"
 	grafanaAccessCredentialsSecretTemplateString string
-	GrafanaAccessCredentialsSecretTemplateString = ParseObjectTemplateOrDie[*corev1.Secret]("grafana-access-credentials-secret", grafanaAccessCredentialsSecretTemplateString)
+	GrafanaAccessCredentialsSecretTemplate       = ParseObjectTemplateOrDie[*corev1.Secret]("grafana-access-credentials-secret", grafanaAccessCredentialsSecretTemplateString)
+
+	//go:embed "scylladb.grafanafolder.yaml"
+	grafanaScyllaDBFolderTemplateString string
+	GrafanaScyllaDBFolderTemplate       = ParseObjectTemplateOrDie[*integreatlyv1alpha1.GrafanaFolder]("grafanafolder-scylladb", grafanaScyllaDBFolderTemplateString)
 
 	//go:embed "overview-dashboard.configmap.yaml"
 	grafanaOverviewDashboardConfigMapTemplateString string

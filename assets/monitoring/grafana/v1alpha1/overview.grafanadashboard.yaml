@@ -5,6 +5,7 @@ metadata:
   labels:
     app: grafana
 spec:
+  customFolderName: "scylladb"
   configMapRef:
     name: '{{ .scyllaDBMonitoringName }}-grafana-dashboard-overview'
     key: overview.json

@@ -49,12 +49,6 @@ var _ = g.Describe("ScyllaDBMonitoring", func() {
 		)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		framework.By("Waiting for the ScyllaCluster to rollout (RV=%s)", sc.ResourceVersion)
-		waitCtxL1, waitCtxL1Cancel := utils.ContextForRollout(ctx, sc)
-		defer waitCtxL1Cancel()
-		sc, err = utils.WaitForScyllaClusterState(waitCtxL1, f.ScyllaClient().ScyllaV1(), sc.Namespace, sc.Name, utils.WaitForStateOptions{}, utils.IsScyllaClusterRolledOut)
-		o.Expect(err).NotTo(o.HaveOccurred())
-
 		framework.By("Creating a ScyllaDBMonitoring")
 		sm, _, err := scyllafixture.ScyllaDBMonitoringTemplate.RenderObject(map[string]string{
 			"name":              sc.Name,
@@ -92,6 +86,12 @@ var _ = g.Describe("ScyllaDBMonitoring", func() {
 		o.Expect(prometheusE2EIngress.Spec.Rules).To(o.HaveLen(1))
 		prometheusServerName := prometheusE2EIngress.Spec.Rules[0].Host
 
+		framework.By("Waiting for the ScyllaCluster to rollout (RV=%s)", sc.ResourceVersion)
+		waitCtxL1, waitCtxL1Cancel := utils.ContextForRollout(ctx, sc)
+		defer waitCtxL1Cancel()
+		sc, err = utils.WaitForScyllaClusterState(waitCtxL1, f.ScyllaClient().ScyllaV1(), sc.Namespace, sc.Name, utils.WaitForStateOptions{}, utils.IsScyllaClusterRolledOut)
+		o.Expect(err).NotTo(o.HaveOccurred())
+
 		framework.By("Waiting for the ScyllaDBMonitoring to rollout (RV=%s)", sm.ResourceVersion)
 		waitCtx2, waitCtx2Cancel := context.WithTimeout(ctx, 5*time.Minute)
 		defer waitCtx2Cancel()
@@ -102,6 +102,8 @@ var _ = g.Describe("ScyllaDBMonitoring", func() {
 		//  - ingress exposure is asynchronous and some controllers don't report back status to wait for
 		//  - prometheus configuration is asynchronous without any acknowledgement
 		//  - grafana configuration is asynchronous without any acknowledgement
+		// Some of these may be fixable by manually verifying it in the operator sync loop so it can also be
+		// consumed by clients, but it's a bigger effort.
 
 		framework.By("Verifying that Prometheus is configured correctly")
 
@@ -154,6 +156,7 @@ var _ = g.Describe("ScyllaDBMonitoring", func() {
 			defer ctxTargetsCancel()
 
 			targets, err := promClient.Targets(ctxTargets)
+			framework.Infof("Listing grafana targets: err: %v, active: %d, dropped: %d", err, len(targets.Active), len(targets.Dropped))
 			eo.Expect(err).NotTo(o.HaveOccurred())
 
 			eo.Expect(targets.Active).To(o.HaveLen(1))
@@ -163,10 +166,9 @@ var _ = g.Describe("ScyllaDBMonitoring", func() {
 
 			// TODO: Uncomment. There shouldn't be any dropped targets. Currently, /service-discovery contains
 			//       "undefined (0 / 57 active targets)" that are in addition to our ServiceMonitor definition.
-			//       (This may be related to relabeling.)
+			//       (Maciek was looking into this, it seems to be a bug in prometheus operator.)
 			// o.Expect(targets.Dropped).To(o.HaveLen(0))
-			// }).WithTimeout(5 * 60 * time.Second).WithPolling(1 * time.Second).Should(o.Succeed())
-		}).WithTimeout(60 * time.Second).WithPolling(1 * time.Second).Should(o.Succeed())
+		}).WithTimeout(5 * 60 * time.Second).WithPolling(1 * time.Second).Should(o.Succeed())
 
 		framework.By("Verifying that Grafana is configured correctly")
 
@@ -219,30 +221,36 @@ var _ = g.Describe("ScyllaDBMonitoring", func() {
 		)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		dashboards, err := grafanaClient.Dashboards()
-		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(dashboards).NotTo(o.BeEmpty())
-
-		// for i := range dashboards {
-		// 	d := &dashboards[i]
-		// }
-
-		o.Expect(dashboards).To(o.Equal([]gapi.FolderDashboardSearchResponse{
+		expectedDashboards := []gapi.FolderDashboardSearchResponse{
 			{
-				ID:          0,
-				UID:         "",
-				Title:       "",
-				URI:         "",
-				URL:         "",
+				ID:          2,
+				Title:       "CQL Overview",
+				URI:         "db/cql-overview",
 				Slug:        "",
-				Type:        "",
+				Type:        "dash-db",
 				Tags:        []string{},
 				IsStarred:   false,
-				FolderID:    0,
-				FolderUID:   "",
-				FolderTitle: "",
-				FolderURL:   "",
+				FolderID:    1,
+				FolderTitle: "scylladb",
 			},
-		}))
+		}
+
+		var dashboards []gapi.FolderDashboardSearchResponse
+		o.Eventually(func(eo o.Gomega) {
+			dashboards, err = grafanaClient.Dashboards()
+			framework.Infof("Listing grafana dashboards: err: %v, count: %d", err, len(dashboards))
+			eo.Expect(err).NotTo(o.HaveOccurred())
+			eo.Expect(dashboards).To(o.HaveLen(len(expectedDashboards)))
+		}).WithTimeout(10 * 60 * time.Second).WithPolling(1 * time.Second).Should(o.Succeed())
+
+		// Clear random fields for comparison.
+		for i := range dashboards {
+			d := &dashboards[i]
+			d.UID = ""
+			d.URL = ""
+			d.FolderUID = ""
+			d.FolderURL = ""
+		}
+		o.Expect(dashboards).To(o.Equal(expectedDashboards))
 	})
 })

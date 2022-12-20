@@ -231,6 +231,15 @@ func Apply(
 			options,
 		)
 
+	case *integreatlyv1alpha1.GrafanaFolder:
+		return ApplyGrafanaFolder(
+			ctx,
+			required.(*integreatlyv1alpha1.GrafanaFolder),
+			TypeApplyControlInterface[*integreatlyv1alpha1.GrafanaFolder](control),
+			recorder,
+			options,
+		)
+
 	case *integreatlyv1alpha1.GrafanaDashboard:
 		return ApplyGrafanaDashboard(
 			ctx,
@@ -292,6 +301,16 @@ func ApplyGrafana(
 	options ApplyOptions,
 ) (*integreatlyv1alpha1.Grafana, bool, error) {
 	return ApplyGeneric[*integreatlyv1alpha1.Grafana](ctx, required, control, recorder, options)
+}
+
+func ApplyGrafanaFolder(
+	ctx context.Context,
+	required *integreatlyv1alpha1.GrafanaFolder,
+	control ApplyControlInterface[*integreatlyv1alpha1.GrafanaFolder],
+	recorder record.EventRecorder,
+	options ApplyOptions,
+) (*integreatlyv1alpha1.GrafanaFolder, bool, error) {
+	return ApplyGeneric[*integreatlyv1alpha1.GrafanaFolder](ctx, required, control, recorder, options)
 }
 
 func ApplyGrafanaDashboard(

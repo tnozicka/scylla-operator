@@ -95,7 +95,7 @@ func makeGrafanaAccessSecret(sm *scyllav1alpha1.ScyllaDBMonitoring, grafana *int
 		password = []byte(grafana.Spec.Config.Security.AdminPassword)
 	}
 
-	return grafanav1alpha1assets.GrafanaAccessCredentialsSecretTemplateString.RenderObject(map[string]any{
+	return grafanav1alpha1assets.GrafanaAccessCredentialsSecretTemplate.RenderObject(map[string]any{
 		"scyllaDBMonitoringName": sm.Name,
 		"username":               username,
 		"password":               password,
@@ -104,6 +104,12 @@ func makeGrafanaAccessSecret(sm *scyllav1alpha1.ScyllaDBMonitoring, grafana *int
 
 func makeGrafanaOverviewDashboardConfigMap(sm *scyllav1alpha1.ScyllaDBMonitoring) (*corev1.ConfigMap, string, error) {
 	return grafanav1alpha1assets.GrafanaOverviewDashboardConfigMapTemplate.RenderObject(map[string]any{
+		"scyllaDBMonitoringName": sm.Name,
+	})
+}
+
+func makeGrafanaScyllaDBFolder(sm *scyllav1alpha1.ScyllaDBMonitoring) (*integreatlyv1alpha1.GrafanaFolder, string, error) {
+	return grafanav1alpha1assets.GrafanaScyllaDBFolderTemplate.RenderObject(map[string]any{
 		"scyllaDBMonitoringName": sm.Name,
 	})
 }
@@ -135,6 +141,7 @@ func (smc *Controller) syncGrafana(
 	ctx context.Context,
 	sm *scyllav1alpha1.ScyllaDBMonitoring,
 	grafanas map[string]*integreatlyv1alpha1.Grafana,
+	grafanaFolders map[string]*integreatlyv1alpha1.GrafanaFolder,
 	dashboards map[string]*integreatlyv1alpha1.GrafanaDashboard,
 	datasources map[string]*integreatlyv1alpha1.GrafanaDataSource,
 	secrets map[string]*corev1.Secret,
@@ -192,6 +199,9 @@ func (smc *Controller) syncGrafana(
 	// Render manifests.
 	var renderErrors []error
 
+	requiredScyllaDBGrafanaFolder, _, err := makeGrafanaScyllaDBFolder(sm)
+	renderErrors = append(renderErrors, err)
+
 	requiredOverviewDashboardConfigMap, _, err := makeGrafanaOverviewDashboardConfigMap(sm)
 	renderErrors = append(renderErrors, err)
 
@@ -234,6 +244,16 @@ func (smc *Controller) syncGrafana(
 		ingresses,
 		&controllerhelpers.PruneControlFuncs{
 			DeleteFunc: smc.kubeClient.NetworkingV1().Ingresses(sm.Namespace).Delete,
+		},
+	)
+	pruneErrors = append(pruneErrors, err)
+
+	err = controllerhelpers.Prune(
+		ctx,
+		helpers.ToArray(requiredScyllaDBGrafanaFolder),
+		grafanaFolders,
+		&controllerhelpers.PruneControlFuncs{
+			DeleteFunc: smc.integreatlyClient.GrafanaFolders(sm.Namespace).Delete,
 		},
 	)
 	pruneErrors = append(pruneErrors, err)
@@ -309,6 +329,14 @@ func (smc *Controller) syncGrafana(
 				GetCachedFunc: smc.secretLister.Secrets(sm.Namespace).Get,
 				CreateFunc:    smc.kubeClient.CoreV1().Secrets(sm.Namespace).Create,
 				UpdateFunc:    smc.kubeClient.CoreV1().Secrets(sm.Namespace).Update,
+			}.ToUntyped(),
+		},
+		{
+			required: requiredScyllaDBGrafanaFolder,
+			control: resourceapply.ApplyControlFuncs[*integreatlyv1alpha1.GrafanaFolder]{
+				GetCachedFunc: smc.grafanaFolderLister.GrafanaFolders(sm.Namespace).Get,
+				CreateFunc:    smc.integreatlyClient.GrafanaFolders(sm.Namespace).Create,
+				UpdateFunc:    smc.integreatlyClient.GrafanaFolders(sm.Namespace).Update,
 			}.ToUntyped(),
 		},
 		{

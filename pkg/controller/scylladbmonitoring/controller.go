@@ -72,6 +72,7 @@ type Controller struct {
 	serviceMonitorLister monitoringv1listers.ServiceMonitorLister
 
 	grafanaLister           integreatlyv1alpha1listers.GrafanaLister
+	grafanaFolderLister     integreatlyv1alpha1listers.GrafanaFolderLister
 	grafanaDashboardLister  integreatlyv1alpha1listers.GrafanaDashboardLister
 	grafanaDataSourceLister integreatlyv1alpha1listers.GrafanaDataSourceLister
 
@@ -101,6 +102,7 @@ func NewController(
 	prometheusRuleInformer monitoringv1informers.PrometheusRuleInformer,
 	serviceMonitorInformer monitoringv1informers.ServiceMonitorInformer,
 	grafanaInformer integreatlyv1alpha1informers.GrafanaInformer,
+	grafanaFolderInformer integreatlyv1alpha1informers.GrafanaFolderInformer,
 	grafanaDashboardInformer integreatlyv1alpha1informers.GrafanaDashboardInformer,
 	grafanaDataSourceInformer integreatlyv1alpha1informers.GrafanaDataSourceInformer,
 ) (*Controller, error) {
@@ -140,6 +142,7 @@ func NewController(
 		serviceMonitorLister: serviceMonitorInformer.Lister(),
 
 		grafanaLister:           grafanaInformer.Lister(),
+		grafanaFolderLister:     grafanaFolderInformer.Lister(),
 		grafanaDashboardLister:  grafanaDashboardInformer.Lister(),
 		grafanaDataSourceLister: grafanaDataSourceInformer.Lister(),
 
@@ -157,6 +160,7 @@ func NewController(
 			prometheusRuleInformer.Informer().HasSynced,
 			serviceMonitorInformer.Informer().HasSynced,
 			grafanaInformer.Informer().HasSynced,
+			grafanaFolderInformer.Informer().HasSynced,
 			grafanaDashboardInformer.Informer().HasSynced,
 			grafanaDataSourceInformer.Informer().HasSynced,
 		},
@@ -202,6 +206,12 @@ func NewController(
 		AddFunc:    smc.addGrafana,
 		UpdateFunc: smc.updateGrafana,
 		DeleteFunc: smc.deleteGrafana,
+	})
+
+	grafanaFolderInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    smc.addGrafanaFolder,
+		UpdateFunc: smc.updateGrafanaFolder,
+		DeleteFunc: smc.deleteGrafanaFolder,
 	})
 
 	grafanaDashboardInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -290,6 +300,29 @@ func (smc *Controller) updateGrafana(old, cur interface{}) {
 }
 
 func (smc *Controller) deleteGrafana(obj interface{}) {
+	smc.handlers.HandleDelete(
+		obj,
+		smc.handlers.EnqueueOwner,
+	)
+}
+
+func (smc *Controller) addGrafanaFolder(obj interface{}) {
+	smc.handlers.HandleAdd(
+		obj.(*integreatlyv1alpha1.GrafanaFolder),
+		smc.handlers.EnqueueOwner,
+	)
+}
+
+func (smc *Controller) updateGrafanaFolder(old, cur interface{}) {
+	smc.handlers.HandleUpdate(
+		old.(*integreatlyv1alpha1.GrafanaFolder),
+		cur.(*integreatlyv1alpha1.GrafanaFolder),
+		smc.handlers.EnqueueOwner,
+		smc.deleteGrafanaFolder,
+	)
+}
+
+func (smc *Controller) deleteGrafanaFolder(obj interface{}) {
 	smc.handlers.HandleDelete(
 		obj,
 		smc.handlers.EnqueueOwner,

@@ -3,7 +3,7 @@ kind: Grafana
 metadata:
   name: "{{ .scyllaDBMonitoringName }}"
 spec:
-  baseImage: "docker.io/grafana/grafana:8.4.0"
+  baseImage: "docker.io/grafana/grafana:9.3.2"
   client:
     preferService: true
   ingress:
@@ -22,7 +22,7 @@ spec:
       enabled: true
     auth:
       disable_login_form: False
-      disable_signout_menu: True
+      disable_signout_menu: False
     auth.anonymous:
       enabled: True
     dashboards:

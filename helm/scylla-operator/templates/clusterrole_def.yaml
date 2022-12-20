@@ -291,6 +291,7 @@ rules:
   - integreatly.org
   resources:
   - grafanas
+  - grafanafolders
   - grafanadashboards
   - grafanadatasources
   verbs:

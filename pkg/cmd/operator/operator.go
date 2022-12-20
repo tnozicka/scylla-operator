@@ -312,6 +312,7 @@ func (o *OperatorOptions) run(ctx context.Context, streams genericclioptions.IOS
 		monitoringInformers.Monitoring().V1().PrometheusRules(),
 		monitoringInformers.Monitoring().V1().ServiceMonitors(),
 		integreatlyInformers.Integreatly().V1alpha1().Grafanas(),
+		integreatlyInformers.Integreatly().V1alpha1().GrafanaFolders(),
 		integreatlyInformers.Integreatly().V1alpha1().GrafanaDashboards(),
 		integreatlyInformers.Integreatly().V1alpha1().GrafanaDataSources(),
 	)

@@ -80,6 +80,18 @@ func (smc *Controller) sync(ctx context.Context, key string) error {
 		},
 	)
 
+	grafanaFolders, err := controllerhelpers.GetObjects[CT, *integreatlyv1alpha1.GrafanaFolder](
+		ctx,
+		sm,
+		scylladbMonitoringControllerGVK,
+		smSelector,
+		controllerhelpers.ControlleeManagerGetObjectsFuncs[CT, *integreatlyv1alpha1.GrafanaFolder]{
+			GetControllerUncachedFunc: smc.scyllaV1alpha1Client.ScyllaDBMonitorings(sm.Namespace).Get,
+			ListObjectsFunc:           smc.grafanaFolderLister.GrafanaFolders(sm.Namespace).List,
+			PatchObjectFunc:           smc.integreatlyClient.GrafanaFolders(sm.Namespace).Patch,
+		},
+	)
+
 	dashboards, err := controllerhelpers.GetObjects[CT, *integreatlyv1alpha1.GrafanaDashboard](
 		ctx,
 		sm,
@@ -246,6 +258,7 @@ func (smc *Controller) sync(ctx context.Context, key string) error {
 				ctx,
 				sm,
 				controllerhelpers.FilterObjectMapByLabel(grafanas, grafanaSelector),
+				controllerhelpers.FilterObjectMapByLabel(grafanaFolders, grafanaSelector),
 				controllerhelpers.FilterObjectMapByLabel(dashboards, grafanaSelector),
 				controllerhelpers.FilterObjectMapByLabel(datasources, grafanaSelector),
 				controllerhelpers.FilterObjectMapByLabel(secrets, grafanaSelector),
