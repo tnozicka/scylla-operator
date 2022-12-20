@@ -3,7 +3,7 @@ kind: Grafana
 metadata:
   name: "{{ .scyllaDBMonitoringName }}"
 spec:
-  baseImage: "docker.io/grafana/grafana:9.3.2"
+  baseImage: "docker.io/grafana/grafana:8.4.0"
   client:
     preferService: true
   ingress:
@@ -42,6 +42,9 @@ spec:
   - matchLabels:
       scylla-operator.scylladb.com/scylladbmonitoring-name: "{{ .scyllaDBMonitoringName }}"
   deployment:
+    env:
+    - name: GF_SECURITY_DISABLE_BRUTE_FORCE_LOGIN_PROTECTION
+      value: "true"
     affinity:
       {{- .affinity | toYAML | nindent 6 }}
     tolerations:
