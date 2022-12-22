@@ -21,19 +21,13 @@ type GlobalGetList[T any] struct {
 	ListFunc func(selector labels.Selector) ([]T, error)
 }
 
-func (gl GlobalGetList[T]) Get(namespace, name string) (T, error) {
-	if len(namespace) != 0 {
-		panic("trying to get non-namespaced object with a namespace")
-	}
+var _ GetterLister[any] = GlobalGetList[any]{}
 
+func (gl GlobalGetList[T]) Get(defaultNamespace, name string) (T, error) {
 	return gl.GetFunc(name)
 }
 
-func (gl GlobalGetList[T]) List(namespace string, selector labels.Selector) ([]T, error) {
-	if len(namespace) != 0 {
-		panic("trying to get non-namespaced object with a namespace")
-	}
-
+func (gl GlobalGetList[T]) List(defaultNamespace string, selector labels.Selector) ([]T, error) {
 	return gl.ListFunc(selector)
 }
 
@@ -42,10 +36,12 @@ type NamespacedGetList[T any] struct {
 	ListFunc func(namespace string, selector labels.Selector) ([]T, error)
 }
 
-func (gl NamespacedGetList[T]) Get(namespace, name string) (T, error) {
-	return gl.GetFunc(namespace, name)
+var _ GetterLister[any] = NamespacedGetList[any]{}
+
+func (gl NamespacedGetList[T]) Get(defaultNamespace, name string) (T, error) {
+	return gl.GetFunc(defaultNamespace, name)
 }
 
-func (gl NamespacedGetList[T]) List(namespace string, selector labels.Selector) ([]T, error) {
-	return gl.ListFunc(namespace, selector)
+func (gl NamespacedGetList[T]) List(defaultNamespace string, selector labels.Selector) ([]T, error) {
+	return gl.ListFunc(defaultNamespace, selector)
 }
