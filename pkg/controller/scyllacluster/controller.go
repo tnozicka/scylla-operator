@@ -155,12 +155,12 @@ func NewController(
 		keyFunc,
 		scheme.Scheme,
 		scyllaClusterControllerGVK,
-		kubeinterfaces.GetList[*scyllav1.ScyllaCluster]{
+		kubeinterfaces.NamespacedGetList[*scyllav1.ScyllaCluster]{
 			GetFunc: func(namespace, name string) (*scyllav1.ScyllaCluster, error) {
 				return scc.scyllaLister.ScyllaClusters(namespace).Get(name)
 			},
-			ListFunc: func(selector labels.Selector) (ret []*scyllav1.ScyllaCluster, err error) {
-				return scc.scyllaLister.List(selector)
+			ListFunc: func(namespace string, selector labels.Selector) (ret []*scyllav1.ScyllaCluster, err error) {
+				return scc.scyllaLister.ScyllaClusters(namespace).List(selector)
 			},
 		},
 	)

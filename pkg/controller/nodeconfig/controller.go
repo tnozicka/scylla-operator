@@ -137,11 +137,8 @@ func NewController(
 		keyFunc,
 		scheme.Scheme,
 		nodeConfigControllerGVK,
-		kubeinterfaces.GetList[*scyllav1alpha1.NodeConfig]{
-			GetFunc: func(namespace, name string) (*scyllav1alpha1.NodeConfig, error) {
-				if len(namespace) != 0 {
-					panic("trying to get non-namespaced object with a namespace")
-				}
+		kubeinterfaces.GlobalGetList[*scyllav1alpha1.NodeConfig]{
+			GetFunc: func(name string) (*scyllav1alpha1.NodeConfig, error) {
 				return ncc.nodeConfigLister.Get(name)
 			},
 			ListFunc: func(selector labels.Selector) (ret []*scyllav1alpha1.NodeConfig, err error) {

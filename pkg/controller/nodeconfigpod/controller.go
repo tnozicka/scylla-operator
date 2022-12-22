@@ -41,8 +41,8 @@ const (
 )
 
 var (
-	keyFunc       = cache.DeletionHandlingMetaNamespaceKeyFunc
-	controllerGVK = corev1.SchemeGroupVersion.WithKind("Pod")
+	keyFunc          = cache.DeletionHandlingMetaNamespaceKeyFunc
+	podControllerGVK = corev1.SchemeGroupVersion.WithKind("Pod")
 )
 
 type Controller struct {
@@ -109,9 +109,9 @@ func NewController(
 		ncpc.queue,
 		keyFunc,
 		scheme.Scheme,
-		controllerGVK,
-		kubeinterfaces.GetList[*scyllav1alpha1.NodeConfig]{
-			GetFunc: func(namespace, name string) (*scyllav1alpha1.NodeConfig, error) {
+		podControllerGVK,
+		kubeinterfaces.GlobalGetList[*scyllav1alpha1.NodeConfig]{
+			GetFunc: func(name string) (*scyllav1alpha1.NodeConfig, error) {
 				return ncpc.nodeConfigLister.Get(name)
 			},
 			ListFunc: func(selector labels.Selector) (ret []*scyllav1alpha1.NodeConfig, err error) {

@@ -99,11 +99,8 @@ func NewController(
 		keyFunc,
 		scheme.Scheme,
 		scyllaOperatorConfigControllerGVK,
-		kubeinterfaces.GetList[*scyllav1alpha1.ScyllaOperatorConfig]{
-			GetFunc: func(namespace, name string) (*scyllav1alpha1.ScyllaOperatorConfig, error) {
-				if len(namespace) != 0 {
-					panic("trying to get non-namespaced object with a namespace")
-				}
+		kubeinterfaces.GlobalGetList[*scyllav1alpha1.ScyllaOperatorConfig]{
+			GetFunc: func(name string) (*scyllav1alpha1.ScyllaOperatorConfig, error) {
 				return opc.scyllaOperatorConfigLister.Get(name)
 			},
 			ListFunc: func(selector labels.Selector) (ret []*scyllav1alpha1.ScyllaOperatorConfig, err error) {

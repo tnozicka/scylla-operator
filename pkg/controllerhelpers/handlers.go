@@ -44,93 +44,6 @@ type GetFuncType[T any] func(namespace, name string) (T, error)
 type EnqueueFuncType func(kubeinterfaces.ObjectInterface, HandlerOperationType)
 type DeleteFuncType = func(any)
 
-// func Enqueue[T ObjectInterface](obj T,queue   workqueue.RateLimitingInterface, keyFunc KeyFuncType, op HandlerOperationType) {
-// 	EnqueueDepth[T](2, obj,queue, keyFunc, op)
-// }
-//
-// func EnqueueDepth[T ObjectInterface](depth int, obj T, queue   workqueue.RateLimitingInterface, keyFunc KeyFuncType, op HandlerOperationType) {
-// 	key, err := keyFunc(obj)
-// 	if err != nil {
-// 		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", obj, err))
-// 		return
-// 	}
-//
-// 	// klog.V(4).InfoSDepth(depth+1, "Enqueuing object", []any{"Operation", op, getObjectLogContext(obj, nil)...}...)
-// 	klog.V(4).InfoSDepth(depth+1, "Enqueuing object", getObjectLogContext(obj, nil)...)
-// 	queue.Add(key)
-// }
-//
-// func EnqueueOwner[T ObjectInterface](obj T,queue   workqueue.RateLimitingInterface, keyFunc KeyFuncType, op HandlerOperationType) {
-// 	EnqueueOwnerDepth[T](2, obj,queue, keyFunc, op)
-// }
-//
-// func EnqueueOwnerDepth[T ObjectInterface](depth int, obj T, controller queue   workqueue.RateLimitingInterface, keyFunc KeyFuncType, op HandlerOperationType) {
-// 	controllerRef := metav1.GetControllerOf(obj)
-// 	if controllerRef == nil {
-// 		return
-// 	}
-//
-// 	if controllerRef.Kind != q.gvk.Kind {
-// 		return
-// 	}
-//
-// 	owner, err := q.getFunc(obj.GetNamespace(), controllerRef.Name)
-// 	if err != nil {
-// 		utilruntime.HandleError(err)
-// 		return
-// 	}
-//
-// 	if owner.GetUID() != controllerRef.UID {
-// 		utilruntime.HandleError(err)
-// 		return
-// 	}
-//
-// 	// klog.V(4).InfoSDepth(depth, "Enqueuing owner", "OwnerGVK", q.gvk, "OwnerRef", klog.KObj(owner), "OwnerUID", owner.GetUID(), getObjectLogContext(obj, nil)...)
-// 	klog.V(4).InfoSDepth(depth, "Enqueuing owner", "OwnerGVK", q.gvk, "OwnerRef", klog.KObj(owner), "OwnerUID", owner.GetUID(), "TODO")
-// 	q.enqueue(depth+1, owner, operation)
-// }
-//
-// func HandleAdd[T ObjectInterface](, obj any, enqueueFunc EnqueueFuncType) {
-// 	klog.V(5).InfoSDepth(depth, "Observed addition", getObjectLogContext(obj.(ObjectInterface), nil)...)
-//
-// 	enqueueFunc(obj.(ObjectInterface), handlerOperationTypeAdd)
-// }
-//
-// func (h *Handlers[QT]) updateHandler(depth int, oldUntyped, curUntyped any, enqueueFunc EnqueueFuncType, deleteFunc DeleteFuncType) {
-// 	old := oldUntyped.(ObjectInterface)
-// 	cur := curUntyped.(ObjectInterface)
-//
-// 	klog.V(5).InfoSDepth(depth, "Observed update", getObjectLogContext(cur, old)...)
-//
-// 	if cur.GetUID() != old.GetUID() {
-// 		key, err := h.keyFunc(old)
-// 		if err != nil {
-// 			utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", old, err))
-// 			return
-// 		}
-//
-// 		deleteFunc(cache.DeletedFinalStateUnknown{
-// 			Key: key,
-// 			Obj: old,
-// 		})
-// 	}
-//
-// 	enqueueFunc(cur, handlerOperationTypeUpdate)
-// }
-//
-// func (h *Handlers[QT]) deleteHandler(depth int, obj any, enqueueFunc EnqueueFuncType) {
-// 	tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-// 	if ok {
-// 		klog.V(5).InfoSDepth(depth, "Observed deletion", getObjectLogContext(tombstone.Obj.(ObjectInterface), nil)...)
-// 		enqueueFunc(tombstone.Obj.(ObjectInterface), handlerOperationTypeDelete)
-// 		return
-// 	}
-//
-// 	klog.V(5).InfoSDepth(depth, "Observed deletion", getObjectLogContext(obj.(ObjectInterface), nil)...)
-//
-// 	enqueueFunc(obj.(ObjectInterface), handlerOperationTypeDelete)
-// }
-
 type Handlers[T kubeinterfaces.ObjectInterface] struct {
 	queue        workqueue.RateLimitingInterface
 	keyFunc      KeyFuncType
@@ -170,7 +83,7 @@ func (h *Handlers[T]) Enqueue(obj kubeinterfaces.ObjectInterface, op HandlerOper
 func (h *Handlers[T]) EnqueueAllWithDepth(depth int, untypedObj kubeinterfaces.ObjectInterface, op HandlerOperationType) {
 	klog.V(4).InfoSDepth(depth, "Enqueuing all controller objects", getObjectLogContext(untypedObj, nil)...)
 
-	controllerObjs, err := h.getterLister.List(labels.Everything())
+	controllerObjs, err := h.getterLister.List(untypedObj.GetNamespace(), labels.Everything())
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("couldn't list all controller objects for %T: %w", untypedObj, err))
 		return
