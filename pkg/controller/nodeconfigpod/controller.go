@@ -234,7 +234,7 @@ func (ncpc *Controller) updatePod(old, cur interface{}) {
 func (ncpc *Controller) addConfigMap(obj interface{}) {
 	ncpc.handlers.HandleAdd(
 		obj.(*corev1.ConfigMap),
-		ncpc.handlers.EnqueueOwner,
+		ncpc.handlers.EnqueueOwnerFunc(ncpc.enqueueScyllaPod),
 	)
 }
 
@@ -242,7 +242,7 @@ func (ncpc *Controller) updateConfigMap(old, cur interface{}) {
 	ncpc.handlers.HandleUpdate(
 		old.(*corev1.ConfigMap),
 		cur.(*corev1.ConfigMap),
-		ncpc.handlers.EnqueueOwner,
+		ncpc.handlers.EnqueueOwnerFunc(ncpc.enqueueScyllaPod),
 		ncpc.deleteConfigMap,
 	)
 }
@@ -250,7 +250,7 @@ func (ncpc *Controller) updateConfigMap(old, cur interface{}) {
 func (ncpc *Controller) deleteConfigMap(obj interface{}) {
 	ncpc.handlers.HandleDelete(
 		obj,
-		ncpc.handlers.EnqueueOwner,
+		ncpc.handlers.EnqueueOwnerFunc(ncpc.enqueueScyllaPod),
 	)
 }
 
