@@ -117,6 +117,48 @@ type ExposeOptions struct {
 	CQL *CQLExposeOptions `json:"cql,omitempty"`
 }
 
+type NodeServiceTemplate struct {
+	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// type is the Kubernetes Service type.
+	// +kubebuilder:validation:Required
+	Type corev1.ServiceType `json:"type""`
+
+	ExternalTrafficPolicy *corev1.ServiceExternalTrafficPolicy `json:"externalTrafficPolicy,omitempty"`
+
+	AllocateLoadBalancerNodePorts *bool `json:"allocateLoadBalancerNodePorts,omitempty"`
+
+	LoadBalancerClass *string `json:"loadBalancerClass,omitempty"`
+
+	InternalTrafficPolicy *corev1.ServiceInternalTrafficPolicy `json:"internalTrafficPolicy,omitempty"`
+}
+
+type BroadcastAddressType string
+
+const (
+	// PodIPBroadcastAddressType selects the IP address from Pod.status.podIP
+	PodIPBroadcastAddressType BroadcastAddressType = "PodIP"
+
+	// ServiceClusterIPBroadcastAddressType selects the IP address from Service.spec.ClusterIP
+	ServiceClusterIPBroadcastAddressType BroadcastAddressType = "ServiceClusterIP"
+
+	// ServiceLoadBalancerIngressIPBroadcastAddressType selects the IP address from Service.status.ingress[0].ip
+	ServiceLoadBalancerIngressIPBroadcastAddressType BroadcastAddressType = "ServiceLoadBalancerIngressIP"
+)
+
+type BroadcastOptions struct {
+	// nodes specifies the address type that is broadcasted for communication with other nodes
+	// within the same DC as well as for nodes in other DCs.
+	// (This field controls the broadcast_address value in ScyllaDB config.)
+	// +kubebuilder:default:="ServiceClusterIP"
+	Nodes BroadcastAddressType `json:"nodes"`
+
+	// clients specifies the address type that is broadcasted for communication with clients.
+	// (This field controls the broadcast_rpc_address value in ScyllaDB config.)
+	// +kubebuilder:default:="ServiceClusterIP"
+	Clients BroadcastAddressType `json:"clients"`
+}
+
 // CQLExposeOptions hold options related to exposing CQL backend.
 // EXPERIMENTAL. Do not rely on any particular behaviour controlled by this field.
 type CQLExposeOptions struct {
@@ -124,6 +166,16 @@ type CQLExposeOptions struct {
 	// EXPERIMENTAL. Do not rely on any particular behaviour controlled by this field.
 	// +optional
 	Ingress *IngressOptions `json:"ingress,omitempty"`
+
+	// +kubebuilder:default:={type:"ClusterIP"}
+	NodeService *NodeServiceTemplate `json:"nodeService,omitempty"`
+
+	// BroadcastOptions defines how ScyllaDB node publishes its IP address to other nodes and clients
+	// Validation should check that the referenced type is available.
+	// e.g. nodeService.type has to be >= LoadBalancer if broadcast option is referencing ServiceLoadBalancerIngressIP.
+	// This won't mean the ServiceLoadBalancerIngressIP will be available (can be non-IP based LB)
+	// but it will filter out most common errors.
+	BroadcastOptions *BroadcastOptions `json:"broadcastOptions,omitempty"`
 }
 
 // IngressOptions defines configuration options for Ingress objects associated with cluster nodes.
