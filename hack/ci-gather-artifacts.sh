@@ -40,21 +40,23 @@ popd
 
 mkdir namespaces
 pushd namespaces
-namespaces=$( kubectl get namespaces --template='{{ range .items }}{{ println .metadata.name }}{{ end }}' )
-for n in ${namespaces}; do
+namespaces=( $( kubectl get namespaces --template='{{ range .items }}{{ println .metadata.name }}{{ end }}' ) )
+printf "Found %d namespace(s)\n" "${#namespaces[@]}"
+for n in "${namespaces[@]}"; do
     mkdir "${n}"
     pushd "${n}"
 
     for r in ${namespaced_resources}; do
-        objects=$( kubectl -n "${n}" get "${r}" --template='{{ range .items }}{{ println .metadata.name }}{{ end }}' )
+        objects=( $( kubectl -n "${n}" get "${r}" --template='{{ range .items }}{{ println .metadata.name }}{{ end }}' ) )
 
-        if [[ -z "${objects}" ]]; then
+        if [[ -z "${objects[*]}" ]]; then
             continue
         fi
 
+        printf "Found %d objets(s) for resource %s in namespace %s\n" "${#objects[@]}" "${r}" "${n}"
         mkdir "${r}"
         pushd "${r}"
-        for o in ${objects}; do
+        for o in "${objects[@]}"; do
             # Ignore not found to tolerate objects with delayed deletion or TTL.
             kubectl -n "${n}" get --ignore-not-found=true "${r}"/"${o}" -o yaml > "${o}".yaml
 
