@@ -24,12 +24,24 @@ type IOStreams struct {
 }
 
 type ClientConfig struct {
-	Kubeconfig    string
-	QPS           float32
-	Burst         int
-	UserAgentName string
-	RestConfig    *restclient.Config
-	ProtoConfig   *restclient.Config
+	Kubeconfig      string
+	QPS             float32
+	Burst           int
+	UserAgentName   string
+	ClientNamespace string
+	RestConfig      *restclient.Config
+	ProtoConfig     *restclient.Config
+}
+
+func MakeVersionedUserAgent(baseName string) string {
+	return fmt.Sprintf(
+		"%s/%s (%s/%s) scylla-operator/%s",
+		baseName,
+		version.Get().GitVersion,
+		goruntime.GOOS,
+		goruntime.GOARCH,
+		version.Get().GitCommit,
+	)
 }
 
 func NewClientConfig(userAgentName string) ClientConfig {
@@ -59,24 +71,23 @@ func (cc *ClientConfig) Complete() error {
 	loader := clientcmd.NewDefaultClientConfigLoadingRules()
 	// Use explicit kubeconfig if set.
 	loader.ExplicitPath = cc.Kubeconfig
-	cc.RestConfig, err = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 		loader,
 		&clientcmd.ConfigOverrides{},
-	).ClientConfig()
+	)
+	cc.RestConfig, err = clientConfig.ClientConfig()
 	if err != nil {
 		return fmt.Errorf("can't create client config: %w", err)
 	}
 
+	cc.ClientNamespace, _, err = clientConfig.Namespace()
+	if err != nil {
+		return fmt.Errorf("can't get default namespace: %w", err)
+	}
+
 	cc.RestConfig.QPS = cc.QPS
 	cc.RestConfig.Burst = cc.Burst
-	cc.RestConfig.UserAgent = fmt.Sprintf(
-		"%s/%s (%s/%s) scylla-operator/%s",
-		cc.UserAgentName,
-		version.Get().GitVersion,
-		goruntime.GOOS,
-		goruntime.GOARCH,
-		version.Get().GitCommit,
-	)
+	cc.RestConfig.UserAgent = MakeVersionedUserAgent(cc.UserAgentName)
 
 	cc.ProtoConfig = restclient.CopyConfig(cc.RestConfig)
 	cc.ProtoConfig.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"

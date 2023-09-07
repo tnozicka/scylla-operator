@@ -19,6 +19,12 @@ func ConvertSlice[To, From any](slice []From, convert func(From) To) []To {
 	return ConvertToArray(convert, slice...)
 }
 
+func ReferenceSliceItems[T any](slice []T) []*T {
+	return ConvertSlice(slice, func(from T) *T {
+		return &from
+	})
+}
+
 func Filter[T any](array []T, filterFunc func(T) bool) []T {
 	res := make([]T, 0, len(array))
 
