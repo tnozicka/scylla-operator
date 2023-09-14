@@ -1,7 +1,6 @@
 package operator
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"math"
@@ -25,15 +24,13 @@ import (
 	"k8s.io/klog/v2"
 )
 
-type GatherRunFunc func(ctx context.Context) error
-
 type GatherBaseOptions struct {
 	gathererName string
 	configFlags  *kgenericclioptions.ConfigFlags
 
 	kubeClient      kubernetes.Interface
 	dynamicClient   dynamic.Interface
-	discoveryClient discovery.CachedDiscoveryInterface
+	discoveryClient discovery.DiscoveryInterface
 
 	DestDir              string
 	CollectManagedFields bool
