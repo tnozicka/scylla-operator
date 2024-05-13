@@ -9,7 +9,13 @@ shopt -s inherit_errexit
 source "$( dirname "${BASH_SOURCE[0]}" )/../../lib/kube.sh"
 
 # gather-artifacts is a self sufficient function that collects artifacts without depending on any external objects.
+# $1- target directory
 function gather-artifacts {
+  if [ -z "${1+x}" ]; then
+    echo -e "Missing target directory.\nUsage: ${0} target_directory" > /dev/stderr
+    exit 2
+  fi
+
   if [ -z "${SO_IMAGE+x}" ]; then
     echo "SO_IMAGE can't be empty" > /dev/stderr
     exit 2
@@ -57,8 +63,8 @@ EOF
 
   exit_code="$( wait-for-container-exit-with-logs gather-artifacts must-gather must-gather )"
 
-  kubectl -n=gather-artifacts cp --retries=42 -c=wait-for-artifacts must-gather:/tmp/artifacts "${ARTIFACTS}/must-gather"
-  ls -l "${ARTIFACTS}/must-gather"
+  kubectl -n=gather-artifacts cp --retries=42 -c=wait-for-artifacts must-gather:/tmp/artifacts "${1}"
+  ls -l "${1}"
 
   kubectl -n=gather-artifacts delete pod/must-gather --wait=false
 
@@ -69,7 +75,31 @@ EOF
 }
 
 function gather-artifact-on-exit {
-  gather-artifacts || "Error gathering artifacts" > /dev/stderr
+  gather-artifacts "${ARTIFACTS}/must-gather" || "Error gathering artifacts" > /dev/stderr
+}
+
+# $1- kubeconfig ...
+function gather-multi-cluster-artifacts-on-exit {
+  if [ "$#" -eq 0 ]; then
+    echo -e "Missing kubeconfigs.\nUsage: ${0} kubeconfig [kubeconfig ...]" > /dev/stderr
+    exit 2
+  fi
+
+  kubeconfigs=( "$@" )
+  for i in "${!kubeconfigs[@]}"; do
+    KUBECONFIG="${kubeconfigs[$i]}" gather-artifacts "${ARTIFACTS}/must-gather/${i}" &
+    gather_artifacts_bg_pids["${i}"]=$!
+  done
+
+  for pid in "${gather_artifacts_bg_pids[@]}"; do
+    wait "${pid}"
+  done
+}
+
+function unset-default-storageclass {
+  for r in $( kubectl get storageclasses -o name ); do
+    kubectl patch "${r}" -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
+  done
 }
 
 function apply-e2e-workarounds {
