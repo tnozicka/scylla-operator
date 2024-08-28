@@ -5,6 +5,8 @@ package framework
 import (
 	"context"
 	"fmt"
+	"os"
+	"path"
 	"strconv"
 	"time"
 
@@ -33,7 +35,8 @@ const (
 type Framework struct {
 	FullClient
 
-	name string
+	name            string
+	e2eArtifactsDir string
 
 	clusters []*Cluster
 }
@@ -42,28 +45,51 @@ var _ FullClientInterface = &Framework{}
 var _ ClusterInterface = &Framework{}
 
 func NewFramework(namePrefix string) *Framework {
+	var err error
+
 	f := &Framework{
-		name:       names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-", namePrefix)),
-		FullClient: FullClient{},
+		name:            names.SimpleNameGenerator.GenerateName(fmt.Sprintf("%s-", namePrefix)),
+		e2eArtifactsDir: "",
+		FullClient:      FullClient{},
+		clusters:        make([]*Cluster, 0, len(TestContext.RestConfigs)),
 	}
 
-	clusters := make([]*Cluster, 0, len(TestContext.RestConfigs))
+	if len(TestContext.ArtifactsDir) != 0 {
+		f.e2eArtifactsDir = path.Join(TestContext.ArtifactsDir, "e2e")
+		err = os.Mkdir(f.e2eArtifactsDir, 0777)
+		if !os.IsExist(err) {
+			o.Expect(err).NotTo(o.HaveOccurred())
+		}
+	}
+
+	o.Expect(TestContext.RestConfigs).NotTo(o.BeEmpty())
 	for i, restConfig := range TestContext.RestConfigs {
 		clusterName := fmt.Sprintf("%s-%d", f.name, i)
+
+		clusterE2EArtifactsDir := ""
+		if len(f.e2eArtifactsDir) != 0 {
+			clusterE2EArtifactsDir = path.Join(f.e2eArtifactsDir, fmt.Sprintf("cluster-%d", i))
+			err = os.Mkdir(clusterE2EArtifactsDir, 0777)
+			if !os.IsExist(err) {
+				o.Expect(err).NotTo(o.HaveOccurred())
+			}
+		}
+
 		c := NewCluster(
 			clusterName,
+			clusterE2EArtifactsDir,
 			restConfig,
 			func(ctx context.Context, adminClient kubernetes.Interface, adminClientConfig *restclient.Config) (*corev1.Namespace, Client) {
 				return CreateUserNamespace(ctx, clusterName, f.CommonLabels(), adminClient, adminClientConfig)
 			},
 		)
-		clusters = append(clusters, c)
+		f.clusters = append(f.clusters, c)
 	}
-	f.clusters = clusters
 
-	f.FullClient.AdminClient.Config = f.defaultCluster().AdminClientConfig()
+	f.FullClient.AdminClient.Config = f.GetDefaultCluster().AdminClientConfig()
 
 	g.BeforeEach(f.beforeEach)
+	g.JustAfterEach(f.justAfterEach)
 	g.AfterEach(f.afterEach)
 
 	return f
@@ -75,11 +101,11 @@ func (f *Framework) Cluster(idx int) ClusterInterface {
 }
 
 func (f *Framework) Namespace() string {
-	return f.defaultCluster().defaultNamespace.Name
+	return f.GetDefaultCluster().defaultNamespace.Name
 }
 
 func (f *Framework) DefaultNamespaceIfAny() (*corev1.Namespace, Client, bool) {
-	return f.defaultCluster().DefaultNamespaceIfAny()
+	return f.GetDefaultCluster().DefaultNamespaceIfAny()
 }
 
 func (f *Framework) GetIngressAddress(hostname string) string {
@@ -130,8 +156,12 @@ func (f *Framework) GetDefaultZonalScyllaClusterWithThreeRacks() *scyllav1.Scyll
 	return sc
 }
 
+func (f *Framework) AddCleaners(cleaners ...CleanupInterface) {
+	f.GetDefaultCluster().AddCleaners(cleaners...)
+}
+
 func (f *Framework) CreateUserNamespace(ctx context.Context) (*corev1.Namespace, Client) {
-	return f.defaultCluster().CreateUserNamespace(ctx)
+	return f.GetDefaultCluster().CreateUserNamespace(ctx)
 }
 
 func (f *Framework) GetObjectStorageType() ObjectStorageType {
@@ -161,15 +191,23 @@ func (f *Framework) GetS3CredentialsFile() []byte {
 	return TestContext.S3CredentialsFile
 }
 
-func (f *Framework) defaultCluster() *Cluster {
+func (f *Framework) GetDefaultCluster() *Cluster {
+	o.Expect(f.clusters).NotTo(o.BeEmpty())
 	return f.clusters[0]
 }
 
 func (f *Framework) beforeEach(ctx context.Context) {
-	ns, nsClient := f.defaultCluster().CreateUserNamespace(ctx)
-	f.defaultCluster().defaultNamespace = ns
-	f.defaultCluster().defaultClient = nsClient
+	ns, nsClient := f.GetDefaultCluster().CreateUserNamespace(ctx)
+	f.GetDefaultCluster().defaultNamespace = ns
+	f.GetDefaultCluster().defaultClient = nsClient
 	f.FullClient.Client = nsClient
+}
+
+func (f *Framework) justAfterEach(ctx context.Context) {
+	ginkgoNamespace := f.GetDefaultCluster().defaultNamespace.Name
+	for _, c := range f.clusters {
+		c.Collect(ctx, ginkgoNamespace)
+	}
 }
 
 func (f *Framework) afterEach(ctx context.Context) {
@@ -177,12 +215,27 @@ func (f *Framework) afterEach(ctx context.Context) {
 		Config: nil,
 	}
 
-	f.defaultCluster().defaultNamespace = nil
-	f.defaultCluster().defaultClient = nilClient
+	f.GetDefaultCluster().defaultNamespace = nil
+	f.GetDefaultCluster().defaultClient = nilClient
 	f.FullClient.Client = nilClient
 
-	for _, c := range f.clusters {
-		c.Cleanup(ctx)
+	shouldCleanup := true
+	switch TestContext.CleanupPolicy {
+	case CleanupPolicyNever:
+		shouldCleanup = false
+	case CleanupPolicyOnSuccess:
+		if g.CurrentSpecReport().Failed() {
+			shouldCleanup = false
+		}
+	case CleanupPolicyAlways:
+	default:
+		g.Fail(fmt.Sprintf("unexpected cleanup policy %q", TestContext.CleanupPolicy))
+	}
+
+	if shouldCleanup {
+		for _, c := range f.clusters {
+			c.Cleanup(ctx)
+		}
 	}
 }
 
