@@ -10,6 +10,7 @@ import (
 	"github.com/scylladb/scylla-operator/pkg/controllerhelpers"
 	"github.com/scylladb/scylla-operator/pkg/resourceapply"
 	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
@@ -17,7 +18,9 @@ func (ncc *Controller) syncRoleBindings(
 	ctx context.Context,
 	nc *scyllav1alpha1.NodeConfig,
 	roleBindings map[string]*rbacv1.RoleBinding,
-) error {
+) ([]metav1.Condition, error) {
+	var progressingConditions []metav1.Condition
+
 	requiredRoleBindings := []*rbacv1.RoleBinding{
 		makePerftuneRoleBinding(),
 	}
@@ -33,7 +36,7 @@ func (ncc *Controller) syncRoleBindings(
 		},
 		ncc.eventRecorder)
 	if err != nil {
-		return fmt.Errorf("can't prune RoleBinding(s): %w", err)
+		return progressingConditions, fmt.Errorf("can't prune RoleBinding(s): %w", err)
 	}
 
 	var errs []error
@@ -46,5 +49,5 @@ func (ncc *Controller) syncRoleBindings(
 			continue
 		}
 	}
-	return utilerrors.NewAggregate(errs)
+	return progressingConditions, utilerrors.NewAggregate(errs)
 }

@@ -53,13 +53,15 @@ func (ncc *Controller) pruneClusterRoles(ctx context.Context, requiredClusterRol
 	return utilerrors.NewAggregate(errs)
 }
 
-func (ncc *Controller) syncClusterRoles(ctx context.Context, clusterRoles map[string]*rbacv1.ClusterRole) error {
+func (ncc *Controller) syncClusterRoles(ctx context.Context, clusterRoles map[string]*rbacv1.ClusterRole) ([]metav1.Condition, error) {
+	var progressingConditions []metav1.Condition
+
 	requiredClusterRoles := ncc.makeClusterRoles()
 
 	// Delete any excessive ClusterRoles.
 	// Delete has to be the first action to avoid getting stuck on quota.
 	if err := ncc.pruneClusterRoles(ctx, requiredClusterRoles, clusterRoles); err != nil {
-		return fmt.Errorf("can't delete ClusterRole(s): %w", err)
+		return progressingConditions, fmt.Errorf("can't delete ClusterRole(s): %w", err)
 	}
 
 	var errs []error
@@ -73,5 +75,5 @@ func (ncc *Controller) syncClusterRoles(ctx context.Context, clusterRoles map[st
 		}
 	}
 
-	return utilerrors.NewAggregate(errs)
+	return progressingConditions, utilerrors.NewAggregate(errs)
 }

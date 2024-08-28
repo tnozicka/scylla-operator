@@ -57,13 +57,15 @@ func (ncc *Controller) pruneServiceAccounts(ctx context.Context, requiredService
 func (ncc *Controller) syncServiceAccounts(
 	ctx context.Context,
 	serviceAccounts map[string]*corev1.ServiceAccount,
-) error {
+) ([]metav1.Condition, error) {
+	var progressingConditions []metav1.Condition
+
 	requiredServiceAccounts := ncc.makeServiceAccounts()
 
 	// Delete any excessive ServiceAccounts.
 	// Delete has to be the first action to avoid getting stuck on quota.
 	if err := ncc.pruneServiceAccounts(ctx, requiredServiceAccounts, serviceAccounts); err != nil {
-		return fmt.Errorf("can't delete ServiceAccount(s): %w", err)
+		return progressingConditions, fmt.Errorf("can't delete ServiceAccount(s): %w", err)
 	}
 
 	var errs []error
@@ -77,5 +79,5 @@ func (ncc *Controller) syncServiceAccounts(
 		}
 	}
 
-	return utilerrors.NewAggregate(errs)
+	return progressingConditions, utilerrors.NewAggregate(errs)
 }

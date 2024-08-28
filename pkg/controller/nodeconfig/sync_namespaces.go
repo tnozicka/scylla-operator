@@ -53,14 +53,16 @@ func (ncc *Controller) pruneNamespaces(ctx context.Context, requiredNamespaces [
 	return utilerrors.NewAggregate(errs)
 }
 
-func (ncc *Controller) syncNamespaces(ctx context.Context, namespaces map[string]*corev1.Namespace) error {
+func (ncc *Controller) syncNamespaces(ctx context.Context, namespaces map[string]*corev1.Namespace) ([]metav1.Condition, error) {
+	var progressingConditions []metav1.Condition
+
 	requiredNamespaces := ncc.makeNamespaces()
 
 	// Delete any excessive Namespaces.
 	// Delete has to be the first action to avoid getting stuck on quota.
 	err := ncc.pruneNamespaces(ctx, requiredNamespaces, namespaces)
 	if err != nil {
-		return fmt.Errorf("can't delete Namespace(s): %w", err)
+		return progressingConditions, fmt.Errorf("can't delete Namespace(s): %w", err)
 	}
 
 	var errs []error
@@ -73,5 +75,5 @@ func (ncc *Controller) syncNamespaces(ctx context.Context, namespaces map[string
 			continue
 		}
 	}
-	return utilerrors.NewAggregate(errs)
+	return progressingConditions, utilerrors.NewAggregate(errs)
 }

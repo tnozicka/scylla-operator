@@ -3,7 +3,6 @@ package controllerhelpers
 import (
 	"fmt"
 	"sort"
-	"time"
 
 	scyllav1 "github.com/scylladb/scylla-operator/pkg/api/scylla/v1"
 	scyllav1alpha1 "github.com/scylladb/scylla-operator/pkg/api/scylla/v1alpha1"
@@ -222,39 +221,6 @@ func SetAggregatedNodeConditions(nodeName string, conditions *[]metav1.Condition
 	apimeta.SetStatusCondition(conditions, degradedCondition)
 
 	return nil
-}
-
-// SetNodeConfigStatusCondition sets the corresponding condition in conditions to newCondition.
-// conditions must be non-nil.
-// If the condition of the specified type already exists (all fields of the existing condition are updated to
-// newCondition, LastTransitionTime is set to now if the new status differs from the old status)
-// If a condition of the specified type does not exist (LastTransitionTime is set to now() if unset, and newCondition is appended)
-func SetNodeConfigStatusCondition(conditions *[]scyllav1alpha1.NodeConfigCondition, newCondition scyllav1alpha1.NodeConfigCondition) {
-	if conditions == nil {
-		return
-	}
-
-	existingCondition := FindNodeConfigCondition(*conditions, newCondition.Type)
-	if existingCondition == nil {
-		if newCondition.LastTransitionTime.IsZero() {
-			newCondition.LastTransitionTime = metav1.NewTime(time.Now())
-		}
-		*conditions = append(*conditions, newCondition)
-		return
-	}
-
-	if existingCondition.Status != newCondition.Status {
-		existingCondition.Status = newCondition.Status
-		if !newCondition.LastTransitionTime.IsZero() {
-			existingCondition.LastTransitionTime = newCondition.LastTransitionTime
-		} else {
-			existingCondition.LastTransitionTime = metav1.NewTime(time.Now())
-		}
-	}
-
-	existingCondition.Reason = newCondition.Reason
-	existingCondition.Message = newCondition.Message
-	existingCondition.ObservedGeneration = newCondition.ObservedGeneration
 }
 
 // FindNodeConfigCondition finds the conditionType in conditions.

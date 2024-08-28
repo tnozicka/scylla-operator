@@ -14,6 +14,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/cache"
@@ -103,54 +105,147 @@ func (ncc *Controller) sync(ctx context.Context, key string) error {
 		return objectErr
 	}
 
-	status, err := ncc.calculateStatus(nc, daemonSets, ncc.operatorImage)
+	status, err := ncc.calculateStatus(nc)
 	if err != nil {
 		return fmt.Errorf("can't calculate status: %w", err)
 	}
+	statusConditions := status.Conditions.ToMetaV1Conditions()
 
 	if nc.DeletionTimestamp != nil {
-		return ncc.updateStatus(ctx, nc, status)
+		return ncc.updateStatus(ctx, nc, status, statusConditions)
 	}
 
 	var errs []error
 
-	err = ncc.syncNamespaces(ctx, namespaces)
+	err = controllerhelpers.RunSync(
+		&statusConditions,
+		nodeConfigControllerProgressingCondition,
+		nodeConfigControllerDegradedCondition,
+		nc.Generation,
+		func() ([]metav1.Condition, error) {
+			return ncc.syncNamespaces(
+				ctx,
+				namespaces,
+			)
+		},
+	)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("sync Namespace(s): %w", err))
 	}
 
-	err = ncc.syncClusterRoles(ctx, clusterRoles)
+	err = controllerhelpers.RunSync(
+		&statusConditions,
+		nodeConfigControllerProgressingCondition,
+		nodeConfigControllerDegradedCondition,
+		nc.Generation,
+		func() ([]metav1.Condition, error) {
+			return ncc.syncClusterRoles(
+				ctx,
+				clusterRoles,
+			)
+		},
+	)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("sync ClusterRole(s): %w", err))
 	}
 
-	err = ncc.syncRoles(ctx, nc, roles)
+	err = controllerhelpers.RunSync(
+		&statusConditions,
+		nodeConfigControllerProgressingCondition,
+		nodeConfigControllerDegradedCondition,
+		nc.Generation,
+		func() ([]metav1.Condition, error) {
+			return ncc.syncRoles(
+				ctx,
+				nc,
+				roles,
+			)
+		},
+	)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("sync Role(s): %w", err))
 	}
 
-	err = ncc.syncServiceAccounts(ctx, serviceAccounts)
+	err = controllerhelpers.RunSync(
+		&statusConditions,
+		nodeConfigControllerProgressingCondition,
+		nodeConfigControllerDegradedCondition,
+		nc.Generation,
+		func() ([]metav1.Condition, error) {
+			return ncc.syncServiceAccounts(
+				ctx,
+				serviceAccounts,
+			)
+		},
+	)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("sync ServiceAccount(s): %w", err))
 	}
 
-	err = ncc.syncClusterRoleBindings(ctx, clusterRoleBindings)
+	err = controllerhelpers.RunSync(
+		&statusConditions,
+		nodeConfigControllerProgressingCondition,
+		nodeConfigControllerDegradedCondition,
+		nc.Generation,
+		func() ([]metav1.Condition, error) {
+			return ncc.syncClusterRoleBindings(
+				ctx,
+				clusterRoleBindings,
+			)
+		},
+	)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("sync ClusterRoleBinding(s): %w", err))
 	}
 
-	err = ncc.syncRoleBindings(ctx, nc, roleBindings)
+	err = controllerhelpers.RunSync(
+		&statusConditions,
+		nodeConfigControllerProgressingCondition,
+		nodeConfigControllerDegradedCondition,
+		nc.Generation,
+		func() ([]metav1.Condition, error) {
+			return ncc.syncRoleBindings(
+				ctx,
+				nc,
+				roleBindings,
+			)
+		},
+	)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("sync RoleBinding(s): %w", err))
 	}
 
-	err = ncc.syncDaemonSet(ctx, nc, soc, daemonSets)
+	err = controllerhelpers.RunSync(
+		&statusConditions,
+		nodeConfigControllerProgressingCondition,
+		nodeConfigControllerDegradedCondition,
+		nc.Generation,
+		func() ([]metav1.Condition, error) {
+			return ncc.syncDaemonSet(
+				ctx,
+				nc,
+				soc,
+				daemonSets,
+				status,
+				&statusConditions,
+			)
+		},
+	)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("sync DaemonSet(s): %w", err))
 	}
 
-	err = ncc.updateStatus(ctx, nc, status)
-	errs = append(errs, err)
+	// Aggregate conditions.
+	err = controllerhelpers.SetAggregatedWorkloadConditions(&statusConditions, nc.Generation)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("can't aggregate workload conditions: %w", err))
+	} else {
+		// Remove unused Available condition, for now.
+		apimeta.RemoveStatusCondition(&statusConditions, scyllav1alpha1.AvailableCondition)
+
+		err = ncc.updateStatus(ctx, nc, status, statusConditions)
+		errs = append(errs, err)
+	}
 
 	return utilerrors.NewAggregate(errs)
 }

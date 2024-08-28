@@ -3,6 +3,7 @@ package controllerhelpers
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/scylladb/scylla-operator/pkg/internalapi"
@@ -37,23 +38,22 @@ func IsPodReady(pod *corev1.Pod) bool {
 	return condition != nil && condition.Status == corev1.ConditionTrue
 }
 
-// FindStatusConditionsWithSuffix finds all conditions that end with the suffix, except the identity.
-func FindStatusConditionsWithSuffix(conditions []metav1.Condition, suffix string) []metav1.Condition {
+// FindStatusConditionsWithRegex finds all conditions that match the regular expression.
+func FindStatusConditionsWithRegex(conditions []metav1.Condition, regex *regexp.Regexp) []metav1.Condition {
 	var res []metav1.Condition
 
-	suffixLen := len(suffix)
 	for _, c := range conditions {
-		// Filter out identity and optimize filtering out shorter strings.
-		if len(c.Type) <= suffixLen {
-			continue
-		}
-
-		if strings.HasSuffix(c.Type, suffix) {
+		if regex.MatchString(c.Type) {
 			res = append(res, c)
 		}
 	}
 
 	return res
+}
+
+// FindStatusConditionsWithSuffix finds all conditions that end with the suffix, except the identity.
+func FindStatusConditionsWithSuffix(conditions []metav1.Condition, suffix string) []metav1.Condition {
+	return FindStatusConditionsWithRegex(conditions, regexp.MustCompile(fmt.Sprintf(`^.+%s$`, regexp.QuoteMeta(suffix))))
 }
 
 func aggregateStatusConditionInfo(conditions []metav1.Condition) (string, string) {

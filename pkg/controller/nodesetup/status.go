@@ -7,35 +7,21 @@ import (
 	"fmt"
 
 	"github.com/scylladb/scylla-operator/pkg/api/scylla/v1alpha1"
-	"github.com/scylladb/scylla-operator/pkg/controllerhelpers"
-	corev1 "k8s.io/api/core/v1"
+	scyllav1alpha1 "github.com/scylladb/scylla-operator/pkg/api/scylla/v1alpha1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 )
 
-func convertMetaToNodeConfigConditions(conditions []metav1.Condition) []v1alpha1.NodeConfigCondition {
-	converted := make([]v1alpha1.NodeConfigCondition, 0, len(conditions))
-	for _, c := range conditions {
-		converted = append(converted, v1alpha1.NodeConfigCondition{
-			Type:               v1alpha1.NodeConfigConditionType(c.Type),
-			Status:             corev1.ConditionStatus(c.Status),
-			ObservedGeneration: c.ObservedGeneration,
-			LastTransitionTime: c.LastTransitionTime,
-			Reason:             c.Reason,
-			Message:            c.Message,
-		})
-	}
-
-	return converted
-}
-
 func (nsc *Controller) updateNodeStatus(ctx context.Context, currentNC *v1alpha1.NodeConfig, conditions []metav1.Condition) error {
 	nc := currentNC.DeepCopy()
 
-	for _, cond := range convertMetaToNodeConfigConditions(conditions) {
-		controllerhelpers.SetNodeConfigStatusCondition(&nc.Status.Conditions, cond)
+	statusConditions := nc.Status.Conditions.ToMetaV1Conditions()
+	for _, cond := range conditions {
+		_ = apimeta.SetStatusCondition(&statusConditions, cond)
 	}
+	nc.Status.Conditions = scyllav1alpha1.NewNodeConfigConditions(statusConditions)
 
 	if apiequality.Semantic.DeepEqual(nc.Status, currentNC.Status) {
 		return nil

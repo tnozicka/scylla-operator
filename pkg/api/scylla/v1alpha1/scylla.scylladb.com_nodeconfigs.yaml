@@ -707,6 +707,10 @@ spec:
                         type: string
                     type: object
                   type: array
+                desiredNodeSetupCount:
+                  description: desiredNodeSetupCount represent the number node setup daemons that report status back.
+                  format: int64
+                  type: integer
                 nodeStatuses:
                   description: nodeStatuses hold the status for each tuned node.
                   items:

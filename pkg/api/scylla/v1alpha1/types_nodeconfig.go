@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"github.com/scylladb/scylla-operator/pkg/helpers/slices"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +29,8 @@ const (
 	// Reconciled indicates that the NodeConfig is fully deployed and available.
 	NodeConfigReconciledConditionType NodeConfigConditionType = "Reconciled"
 )
+
+// TODO: Move NodeConfigCondition to metav1.Condition in the next API version.
 
 type NodeConfigCondition struct {
 	// type is the type of the NodeConfig condition.
@@ -53,6 +56,42 @@ type NodeConfigCondition struct {
 	Message string `json:"message"`
 }
 
+func (c *NodeConfigCondition) ToMetaV1Condition() metav1.Condition {
+	return metav1.Condition{
+		Type:               string(c.Type),
+		Status:             metav1.ConditionStatus(c.Status),
+		ObservedGeneration: c.ObservedGeneration,
+		LastTransitionTime: c.LastTransitionTime,
+		Reason:             c.Reason,
+		Message:            c.Message,
+	}
+}
+
+func NewNodeConfigCondition(c metav1.Condition) NodeConfigCondition {
+	return NodeConfigCondition{
+		Type:               NodeConfigConditionType(c.Type),
+		Status:             corev1.ConditionStatus(c.Status),
+		ObservedGeneration: c.ObservedGeneration,
+		LastTransitionTime: c.LastTransitionTime,
+		Reason:             c.Reason,
+		Message:            c.Message,
+	}
+}
+
+type NodeConfigConditions []NodeConfigCondition
+
+func (c NodeConfigConditions) ToMetaV1Conditions() []metav1.Condition {
+	return slices.ConvertSlice(c, func(from NodeConfigCondition) metav1.Condition {
+		return from.ToMetaV1Condition()
+	})
+}
+
+func NewNodeConfigConditions(cs []metav1.Condition) NodeConfigConditions {
+	return slices.ConvertSlice(cs, func(from metav1.Condition) NodeConfigCondition {
+		return NewNodeConfigCondition(from)
+	})
+}
+
 type NodeConfigNodeStatus struct {
 	Name            string   `json:"name"`
 	TunedNode       bool     `json:"tunedNode"`
@@ -65,10 +104,14 @@ type NodeConfigStatus struct {
 
 	// conditions represents the latest available observations of current state.
 	// +optional
-	Conditions []NodeConfigCondition `json:"conditions"`
+	Conditions NodeConfigConditions `json:"conditions"`
 
 	// nodeStatuses hold the status for each tuned node.
 	NodeStatuses []NodeConfigNodeStatus `json:"nodeStatuses"`
+
+	// desiredNodeSetupCount represent the number node setup daemons that report status back.
+	// +optional
+	DesiredNodeSetupCount *int64 `json:"desiredNodeSetupCount,omitempty"`
 }
 
 type NodeConfigPlacement struct {

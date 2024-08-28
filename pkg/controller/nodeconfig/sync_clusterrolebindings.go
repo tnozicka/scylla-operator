@@ -56,13 +56,15 @@ func (ncc *Controller) pruneClusterRoleBindings(ctx context.Context, requiredClu
 func (ncc *Controller) syncClusterRoleBindings(
 	ctx context.Context,
 	clusterRoleBindings map[string]*rbacv1.ClusterRoleBinding,
-) error {
+) ([]metav1.Condition, error) {
+	var progressingConditions []metav1.Condition
+
 	requiredClusterRoleBindings := ncc.makeClusterRoleBindings()
 
 	// Delete any excessive ClusterRoleBindings.
 	// Delete has to be the first action to avoid getting stuck on quota.
 	if err := ncc.pruneClusterRoleBindings(ctx, requiredClusterRoleBindings, clusterRoleBindings); err != nil {
-		return fmt.Errorf("can't delete ClusterRoleBinding(s): %w", err)
+		return progressingConditions, fmt.Errorf("can't delete ClusterRoleBinding(s): %w", err)
 	}
 
 	var errs []error
@@ -75,5 +77,5 @@ func (ncc *Controller) syncClusterRoleBindings(
 			continue
 		}
 	}
-	return utilerrors.NewAggregate(errs)
+	return progressingConditions, utilerrors.NewAggregate(errs)
 }

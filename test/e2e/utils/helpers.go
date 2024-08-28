@@ -39,10 +39,50 @@ import (
 )
 
 func IsNodeConfigRolledOut(nc *scyllav1alpha1.NodeConfig) (bool, error) {
-	cond := controllerhelpers.FindNodeConfigCondition(nc.Status.Conditions, scyllav1alpha1.NodeConfigReconciledConditionType)
-	return nc.Status.ObservedGeneration >= nc.Generation &&
-		cond != nil && cond.ObservedGeneration >= nc.Generation && cond.Status == corev1.ConditionTrue, nil
+	if nc.Status.ObservedGeneration < nc.Generation {
+		return false, nil
+	}
+
+	// if nc.Status.DesiredNodeSetupCount == nil {
+	// 	return false, nil
+	// }
+	//
+	// desiredNodes := *nc.Status.DesiredNodeSetupCount
+	// if int64(len(nc.Status.NodeStatuses)) < desiredNodes {
+	// 	return false, nil
+	// }
+	// statuses := nc.Status.NodeStatuses
+
+	// nodeSetupProgressingConditions := controllerhelpers.FindStatusConditionsWithRegex()
+
+	// if int64(len(nc.Status.NodeStatuses)) <  {
+	// 	return false, nil
+	// }
+	//
+	conditions := nc.Status.Conditions.ToMetaV1Conditions()
+
+	if !helpers.IsStatusConditionPresentAndTrue(conditions, string(scyllav1alpha1.NodeConfigReconciledConditionType), nc.Generation) {
+		return false, nil
+	}
+
+	if !helpers.IsStatusConditionPresentAndFalse(conditions, scyllav1.ProgressingCondition, nc.Generation) {
+		return false, nil
+	}
+
+	if !helpers.IsStatusConditionPresentAndFalse(conditions, scyllav1.DegradedCondition, nc.Generation) {
+		return false, nil
+	}
+
+	framework.Infof("NodeConfig %s (RV=%s) is rolled out", klog.KObj(nc), nc.ResourceVersion)
+
+	return true, nil
 }
+
+// func IsNodeConfigRolledOut(nc *scyllav1alpha1.NodeConfig) (bool, error) {
+// 	cond := controllerhelpers.FindNodeConfigCondition(nc.Status.Conditions, scyllav1alpha1.NodeConfigReconciledConditionType)
+// 	return nc.Status.ObservedGeneration >= nc.Generation &&
+// 		cond != nil && cond.ObservedGeneration >= nc.Generation && cond.Status == corev1.ConditionTrue, nil
+// }
 
 func GetMatchingNodesForNodeConfig(ctx context.Context, nodeGetter corev1client.NodesGetter, nc *scyllav1alpha1.NodeConfig) ([]*corev1.Node, error) {
 	nodeList, err := nodeGetter.Nodes().List(ctx, metav1.ListOptions{})
@@ -71,6 +111,10 @@ func IsNodeConfigDoneWithNodes(nodes []*corev1.Node) func(nc *scyllav1alpha1.Nod
 	)
 
 	return func(nc *scyllav1alpha1.NodeConfig) (bool, error) {
+		if len(nodes) == 0 {
+			return true, fmt.Errorf("there has to be at least one node")
+		}
+
 		for _, node := range nodes {
 			if nc.Status.ObservedGeneration < nc.Generation {
 				return false, nil
@@ -93,6 +137,7 @@ func IsNodeConfigDoneWithNodes(nodes []*corev1.Node) func(nc *scyllav1alpha1.Nod
 				return false, nil
 			}
 		}
+
 		return true, nil
 	}
 }
